@@ -4,6 +4,7 @@ using EdgeHub.Security;
 using EdgeHub.Spotify;
 using EdgeHub.Streaming;
 using EdgeHub.SystemStats;
+using Microsoft.Extensions.Configuration.Json;
 
 if (args.Contains("--console"))
 {
@@ -20,10 +21,21 @@ if (args.Contains("--console"))
     return await ConsoleProbe.RunOnWindowsAsync(stop.Token);
 }
 
-var builder = WebApplication.CreateBuilder(args);
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    Args = args,
+    ContentRootPath = PublishedContentRoot(),
+});
 
-// Personal values (token, later the calendar link) live outside git: user secrets in development, or this file.
-builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
+// Personal values (token, later the calendar link) live outside git: user secrets in development, or
+// appsettings.Local.json. That file comes after appsettings.json and user secrets, and before environment variables and
+// the command line, so those can still override it as usual.
+var localSettings = new JsonConfigurationSource { Path = "appsettings.Local.json", Optional = true, ReloadOnChange = true };
+IList<IConfigurationSource> sources = ((IConfigurationBuilder)builder.Configuration).Sources;
+sources.Insert(sources.Select((source, index) => source is FileConfigurationSource ? index + 1 : 0).Max(), localSettings);
+
+// Request logs would include the address, and the first one carries ?k=<token>: keep them quiet whatever the settings.
+builder.Logging.AddFilter("Microsoft.AspNetCore.Hosting.Diagnostics", LogLevel.Warning);
 
 ServerOptions server = builder.Configuration.GetSection(ServerOptions.Section).Get<ServerOptions>() ?? new ServerOptions();
 builder.WebHost.ConfigureKestrel(kestrel =>
@@ -62,17 +74,47 @@ app.UseDefaultFiles();
 app.UseStaticFiles();
 
 app.MapHealthChecks("/health");
-app.MapGet("/api/stream", (LiveStateHub hub, CancellationToken cancellationToken) =>
-    TypedResults.ServerSentEvents(StreamMessages(hub, cancellationToken), eventType: "state"));
+app.MapGet("/api/stream", (LiveStateHub hub, IHostApplicationLifetime lifetime, CancellationToken requestAborted) =>
+    TypedResults.ServerSentEvents(StreamMessages(hub, requestAborted, lifetime.ApplicationStopping), eventType: "state"));
 
 await app.RunAsync();
 return 0;
 
+// Published service: wwwroot and appsettings*.json sit next to the exe, whatever folder it is started from.
+// During development (dotnet run, tests), the default content root, the project folder, is kept.
+static string? PublishedContentRoot() =>
+    Directory.Exists(Path.Combine(AppContext.BaseDirectory, "wwwroot")) ? AppContext.BaseDirectory : null;
+
+// A stream ends when the screen leaves or when the service stops, so a connected tablet never delays a restart.
 static async IAsyncEnumerable<StreamMessage> StreamMessages(
-    LiveStateHub hub, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    LiveStateHub hub,
+    CancellationToken requestAborted,
+    CancellationToken stopping,
+    [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken enumeration = default)
 {
-    await foreach (LiveState state in hub.Subscribe(cancellationToken).ConfigureAwait(false))
+    using var ending = CancellationTokenSource.CreateLinkedTokenSource(requestAborted, stopping, enumeration);
+    IAsyncEnumerator<LiveState> states = hub.Subscribe(ending.Token).GetAsyncEnumerator(ending.Token);
+    try
     {
-        yield return StreamMessage.From(state);
+        while (true)
+        {
+            try
+            {
+                if (!await states.MoveNextAsync().ConfigureAwait(false))
+                {
+                    yield break;
+                }
+            }
+            catch (OperationCanceledException) when (stopping.IsCancellationRequested)
+            {
+                yield break;
+            }
+
+            yield return StreamMessage.From(states.Current);
+        }
+    }
+    finally
+    {
+        await states.DisposeAsync().ConfigureAwait(false);
     }
 }
