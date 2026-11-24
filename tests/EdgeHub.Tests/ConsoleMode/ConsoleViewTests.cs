@@ -55,6 +55,28 @@ public sealed class ConsoleViewTests
         Assert.Contains("⏸ Demo Song", Render(Track(isPlaying: false)));
     }
 
+    [Theory]
+    [InlineData(3_723, "1:02:03")]
+    [InlineData(90_180, "25:03:00")]
+    public void Shows_long_positions_in_hours(int seconds, string expected)
+    {
+        MediaState podcast = Track(isPlaying: true) with { Position = TimeSpan.FromSeconds(seconds), Duration = TimeSpan.FromHours(30) };
+
+        Assert.Contains(expected + " / 30:00:00", Render(podcast));
+    }
+
+    [Fact]
+    public void Names_a_session_that_is_not_spotify_and_skips_an_empty_album()
+    {
+        MediaState video = Track(isPlaying: true) with { AppId = "chrome", Album = "" };
+
+        string screen = Render(video);
+
+        Assert.Contains("Média    ▶ Demo Song", screen);
+        string progressLine = screen.Split('\n').Single(l => l.Contains("1:23 / 3:45", StringComparison.Ordinal));
+        Assert.DoesNotContain("·", progressLine);
+    }
+
     [Fact]
     public void Says_spotify_is_not_running_when_there_is_no_session()
     {

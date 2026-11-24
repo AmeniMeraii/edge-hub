@@ -47,5 +47,7 @@ public static class ConsoleView
     }
 
     private static string Clock(TimeSpan time) =>
-        time.ToString(time.TotalHours >= 1 ? @"h\:mm\:ss" : @"m\:ss", French);
+        time.TotalHours >= 1
+            ? $"{((int)time.TotalHours).ToString(French)}:{time.Minutes:00}:{time.Seconds:00}"
+            : $"{time.Minutes.ToString(French)}:{time.Seconds:00}";
 }

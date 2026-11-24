@@ -14,8 +14,9 @@ public static class Units
 
     private static string Format(double bytes)
     {
+        // Compare the value as it will be printed, so 1023,96 Ko becomes "1,0 Mo" and never "1024,0 Ko".
         int prefix = 0;
-        while (bytes >= 1024 && prefix < Prefixes.Length - 1)
+        while (prefix < Prefixes.Length - 1 && Math.Round(bytes, prefix == 0 ? 0 : 1) >= 1024)
         {
             bytes /= 1024;
             prefix++;
