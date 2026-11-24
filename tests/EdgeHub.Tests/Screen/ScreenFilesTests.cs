@@ -32,18 +32,24 @@ public sealed class ScreenFilesTests(EdgeHubFactory factory) : IClassFixture<Edg
         Assert.Equal("/", manifest.RootElement.GetProperty("start_url").GetString());
     }
 
-    [Fact]
-    public async Task The_screen_loads_nothing_from_another_site()
+    [Theory]
+    [InlineData("/")]
+    [InlineData("/manifest.webmanifest")]
+    [InlineData("/icon.svg")]
+    public async Task The_screen_loads_nothing_from_another_site(string path)
     {
-        string page = await factory.CreateClient().GetStringAsync("/", Ct);
+        // An XML namespace (xmlns="http://www.w3.org/2000/svg") names a vocabulary: nothing is downloaded from it.
+        string file = Regex.Replace(await factory.CreateClient().GetStringAsync(path, Ct), @"xmlns(?::\w+)?\s*=\s*""[^""]*""", "");
 
-        Assert.DoesNotMatch(new Regex("""(?:href|src)\s*=\s*["']?(?:https?:)?//""", RegexOptions.IgnoreCase), page);
-        Assert.DoesNotMatch(new Regex("""url\(\s*["']?(?:https?:)?//""", RegexOptions.IgnoreCase), page);
-        Assert.DoesNotMatch(new Regex("""@import""", RegexOptions.IgnoreCase), page);
+        // Any absolute address (href, src, srcset, url(), fetch, EventSource, import), or one that keeps the scheme of
+        // the page ("//host/…").
+        Assert.DoesNotMatch(new Regex("""https?://""", RegexOptions.IgnoreCase), file);
+        Assert.DoesNotMatch(new Regex("""["'(=]\s*//[^/\s]"""), file);
+        Assert.DoesNotMatch(new Regex("""@import""", RegexOptions.IgnoreCase), file);
     }
 
     [Fact]
-    public async Task Every_font_of_the_screen_is_served_by_the_pc()
+    public async Task Every_font_of_the_screen_is_a_woff2_file_served_by_the_pc()
     {
         HttpClient client = factory.CreateClient();
         string page = await client.GetStringAsync("/", Ct);
@@ -52,13 +58,32 @@ public sealed class ScreenFilesTests(EdgeHubFactory factory) : IClassFixture<Edg
             .Distinct(StringComparer.Ordinal)
             .ToArray();
 
+        // Chakra Petch 500 and 600, IBM Plex Sans 400, 500, 600 and 700.
         Assert.Equal(6, fonts.Length);
         foreach (string font in fonts)
         {
             using var response = await client.GetAsync(font, Ct);
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             Assert.Equal("font/woff2", response.Content.Headers.ContentType?.MediaType);
+            byte[] content = await response.Content.ReadAsByteArrayAsync(Ct);
+            Assert.Equal("wOF2"u8.ToArray(), content.Take(4));
         }
+    }
+
+    [Theory]
+    [InlineData("--font-display")]
+    [InlineData("--font-body")]
+    public async Task The_font_the_page_asks_for_first_is_one_it_serves(string variable)
+    {
+        string page = await factory.CreateClient().GetStringAsync("/", Ct);
+
+        string wanted = Regex.Match(page, variable + """\s*:\s*"([^"]+)"[^;]*;""").Groups[1].Value;
+        string[] served = Regex.Matches(page, """@font-face\s*\{[^}]*font-family\s*:\s*"([^"]+)"[^}]*\}""")
+            .Select(match => match.Groups[1].Value)
+            .ToArray();
+
+        Assert.NotEmpty(wanted);
+        Assert.Contains(wanted, served);
     }
 
     [Fact]
