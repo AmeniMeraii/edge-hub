@@ -1,3 +1,5 @@
+using EdgeHub.Calendar;
+
 namespace EdgeHub.Configuration;
 
 public static class OptionsRegistration
@@ -7,6 +9,7 @@ public static class OptionsRegistration
     {
         services.AddOptions<ServerOptions>().BindConfiguration(ServerOptions.Section).ValidateDataAnnotations().ValidateOnStart();
         services.AddOptions<SecurityOptions>().BindConfiguration(SecurityOptions.Section).ValidateDataAnnotations().ValidateOnStart();
+        services.AddOptions<CalendarOptions>().BindConfiguration(CalendarOptions.Section).ValidateDataAnnotations().ValidateOnStart();
         return services;
     }
 }

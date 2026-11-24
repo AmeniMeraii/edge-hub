@@ -1,3 +1,4 @@
+using EdgeHub.Calendar;
 using EdgeHub.Configuration;
 using EdgeHub.ConsoleMode;
 using EdgeHub.Security;
@@ -60,6 +61,10 @@ builder.Services.AddSingleton<IMediaController>(services =>
         async cancellationToken => await WindowsMediaController.CreateAsync(time, cancellationToken).ConfigureAwait(false),
         time);
 });
+builder.Services.AddHttpClient(IcalCalendarSource.ClientName, client => client.Timeout = TimeSpan.FromSeconds(15))
+    .RemoveAllLoggers();
+builder.Services.AddSingleton<ICalendarSource, IcalCalendarSource>();
+builder.Services.AddSingleton<CalendarToday>();
 builder.Services.AddSingleton<LiveStateHub>();
 builder.Services.AddHostedService<LiveStateService>();
 builder.Services.AddHealthChecks();
@@ -73,6 +78,8 @@ app.UseStaticFiles();
 app.MapHealthChecks("/health");
 app.MapGet("/api/stream", (LiveStateHub hub, IHostApplicationLifetime lifetime, CancellationToken requestAborted) =>
     TypedResults.ServerSentEvents(StreamMessages(hub, requestAborted, lifetime.ApplicationStopping), eventType: "state"));
+
+app.MapGet("/api/calendar/today", (CalendarToday today, CancellationToken cancellationToken) => today.GetAsync(cancellationToken));
 
 await app.RunAsync();
 return 0;
