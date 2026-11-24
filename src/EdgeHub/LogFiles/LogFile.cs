@@ -54,9 +54,9 @@ public static class LogFile
             return NullLoggerProvider.Instance;
         }
 
-        if (!CanWriteTo(folder))
+        if (WriteProblem(folder) is { } problem)
         {
-            Console.Error.WriteLine($"Logs:Folder « {folder} » n'est pas accessible en écriture : pas de fichier de journal pour cette fois.");
+            Console.Error.WriteLine($"Logs:Folder « {folder} » n'est pas accessible en écriture ({problem}) : pas de fichier de journal pour cette fois.");
             return NullLoggerProvider.Instance;
         }
 
@@ -82,17 +82,18 @@ public static class LogFile
         return new SerilogLoggerProvider(logger, dispose: true);
     }
 
-    private static bool CanWriteTo(string folder)
+    /// <summary>Why a new file cannot be written to the folder, or null when it can.</summary>
+    private static string? WriteProblem(string folder)
     {
         try
         {
             Directory.CreateDirectory(folder);
             using var probe = new FileStream(Path.Combine(folder, $".edgehub-{Guid.NewGuid():N}.tmp"), FileMode.CreateNew, FileAccess.Write, FileShare.None, 1, FileOptions.DeleteOnClose);
-            return true;
+            return null;
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            return false;
+            return exception.Message;
         }
     }
 }
