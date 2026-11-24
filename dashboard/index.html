@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Écran Edge</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* Bande de widgets sombre façon écran de bureau : grille 3 colonnes en paysage, empilée en portrait */
+  --bg: #0d1117;
+  --panel: #151b24;
+  --line: #243041;
+  --ink: #e7edf5;
+  --muted: #8593a6;
+  --accent: #5cc8ff;
+  --focus: #ffb547;
+  --ok: #5ee0a0;
+  --font-display: "Chakra Petch", "Segoe UI", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; margin: 0; }
+[hidden] { display: none !important; }
+html, body { height: 100%; background: var(--bg); color: var(--ink); font-family: var(--font-body); -webkit-tap-highlight-color: transparent; }
+body {
+  padding: max(10px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  overflow: hidden;
+}
+.grid {
+  height: 100%;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 1.35fr 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  grid-template-areas: "clock focus todo" "clock focus day";
+}
+.tile {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px 14px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+.label {
+  font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted);
+  display: flex; justify-content: space-between; align-items: center; gap: 8px;
+}
+button {
+  font: inherit; color: var(--ink); background: #1d2532; border: 1px solid var(--line);
+  border-radius: 9px; padding: 6px 10px; cursor: pointer; touch-action: manipulation;
+}
+button:active { transform: scale(.97); }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button.on { border-color: var(--accent); color: var(--accent); }
+
+/* Horloge */
+.clock { grid-area: clock; justify-content: space-between; }
+.time {
+  font-family: var(--font-display); font-weight: 600; font-variant-numeric: tabular-nums;
+  font-size: clamp(56px, 22vh, 170px); line-height: .95; letter-spacing: -.02em;
+}
+.time .sec { font-size: .32em; color: var(--muted); margin-left: .15em; vertical-align: top; }
+.date { font-size: clamp(15px, 4.6vh, 24px); color: var(--ink); text-transform: capitalize; }
+.sub { color: var(--muted); font-size: 13px; margin-top: 4px; }
+.tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; }
+.tools button { font-size: 13px; }
+
+/* Focus */
+.focus { grid-area: focus; align-items: center; }
+.focus .label { align-self: stretch; }
+.ring-wrap { flex: 1; min-height: 0; width: 100%; display: grid; place-items: center; position: relative; }
+.ring { height: 100%; max-height: 100%; aspect-ratio: 1; max-width: 100%; }
+.ring circle { fill: none; stroke-width: 7; }
+.ring .track { stroke: #222c3a; }
+.ring .prog { stroke: var(--focus); stroke-linecap: round; transform: rotate(-90deg); transform-origin: 50% 50%; transition: stroke-dashoffset .5s linear; }
+.focus.break .ring .prog { stroke: var(--ok); }
+.ring-text { position: absolute; text-align: center; }
+.ring-time { font-family: var(--font-display); font-weight: 600; font-size: clamp(24px, 8.5vh, 52px); font-variant-numeric: tabular-nums; }
+.ring-mode { font-size: 11px; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
+.focus-ctrl { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+.focus-ctrl button { font-size: 13px; padding: 6px 9px; }
+#fStart { background: var(--focus); color: #1a1205; border-color: var(--focus); font-weight: 600; min-width: 74px; }
+.focus.break #fStart { background: var(--ok); border-color: var(--ok); }
+.count { font-size: 12px; color: var(--muted); }
+
+/* To-do */
+.todo { grid-area: todo; }
+.todo form { display: flex; gap: 6px; margin: 8px 0 6px; }
+.todo input {
+  flex: 1; min-width: 0; font: inherit; font-size: 14px; color: var(--ink);
+  background: #0f141c; border: 1px solid var(--line); border-radius: 9px; padding: 6px 9px;
+}
+.todo ul { list-style: none; padding: 0; overflow-y: auto; flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 2px; }
+.todo li { display: flex; align-items: center; gap: 8px; font-size: 14px; padding: 4px 2px; border-bottom: 1px solid #1c2430; }
+.todo li span { flex: 1; overflow-wrap: anywhere; }
+.todo li.done span { color: var(--muted); text-decoration: line-through; }
+.chk { width: 20px; height: 20px; padding: 0; border-radius: 6px; flex: none; display: grid; place-items: center; font-size: 12px; }
+.todo li.done .chk { background: var(--ok); border-color: var(--ok); color: #06210f; }
+.del { background: none; border: none; color: var(--muted); padding: 2px 6px; font-size: 16px; }
+
+/* Journée */
+.day { grid-area: day; justify-content: space-between; gap: 6px; }
+.big { font-family: var(--font-display); font-weight: 600; font-size: clamp(22px, 8vh, 40px); font-variant-numeric: tabular-nums; }
+.bar { height: 8px; background: #222c3a; border-radius: 99px; overflow: hidden; }
+.bar > i { display: block; height: 100%; background: var(--accent); border-radius: 99px; }
+.row { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.sport { border-top: 1px solid var(--line); padding-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+.sport-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); }
+.sport-head button, #sportDone { font-size: 12px; padding: 4px 9px; }
+.sport-msg { font-size: 14px; line-height: 1.35; }
+.sport.soon .sport-msg { color: var(--focus); }
+.sport.now .sport-msg { color: var(--accent); }
+.sport.done .sport-msg { color: var(--ok); }
+#sportDone { align-self: flex-start; }
+.sport-title { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cal-status { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.cal-status button { font-size: 11px; padding: 3px 8px; }
+.next { margin-top: 8px; font-size: 14px; color: var(--accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.batt { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.batt b { color: var(--ink); font-weight: 500; }
+
+/* Mascotte */
+.buddy { margin-left: auto; width: clamp(52px, 11vh, 92px); aspect-ratio: 1; cursor: pointer; flex: none; position: relative; -webkit-tap-highlight-color: transparent; }
+.buddy svg { width: 100%; height: 100%; overflow: visible; }
+.buddy .body { fill: #cfe6f7; }
+.buddy .leaf { fill: var(--ok); }
+.buddy .eye { fill: #0d1117; transform-box: fill-box; transform-origin: center; }
+.buddy .cheek { fill: #ff9bb0; opacity: .55; }
+.buddy .mouth { fill: none; stroke: #0d1117; stroke-width: 2.2; stroke-linecap: round; }
+.buddy .gaze { transition: transform .6s ease; }
+.buddy .whole { transform-box: fill-box; transform-origin: 50% 100%; animation: breathe 3.6s ease-in-out infinite; }
+.buddy .badge { opacity: 0; transition: opacity .2s; }
+.buddy .badge circle { fill: var(--focus); }
+.buddy .badge text { fill: #1a1205; font: 700 13px var(--font-body); }
+.buddy.blink .eye { transform: scaleY(.1); }
+.buddy .eye { transition: transform .08s; }
+.buddy.focus .eye { transform: scaleY(.45); }
+.buddy.happy .eye, .buddy.sleepy .eye { opacity: 0; }
+.buddy .arc { fill: none; stroke: #0d1117; stroke-width: 2.4; stroke-linecap: round; opacity: 0; }
+.buddy.happy .arc.up { opacity: 1; }
+.buddy.sleepy .arc.down { opacity: 1; }
+.buddy.alert .badge { opacity: 1; }
+.buddy.alert .whole { animation: hop .7s ease-in-out infinite; }
+.buddy.alert .eye { transform: scale(1.25); }
+.buddy.jump .whole { animation: jump .5s ease-out 2; }
+.buddy.sleepy .whole { animation-duration: 6s; }
+@keyframes breathe { 0%,100% { transform: scale(1, 1); } 50% { transform: scale(1.03, .97); } }
+@keyframes hop { 0%,100% { transform: translateY(0) scale(1, 1); } 30% { transform: translateY(-14%) scale(.96, 1.04); } 55% { transform: translateY(0) scale(1.06, .94); } }
+@keyframes jump { 0% { transform: translateY(0); } 40% { transform: translateY(-22%) rotate(-6deg); } 100% { transform: translateY(0); } }
+
+/* Carte Claude Code */
+.cc-card {
+  position: fixed; top: 12px; left: 50%; transform: translateX(-50%); width: min(720px, calc(100% - 24px));
+  background: #1b2230; border: 1px solid var(--focus); border-radius: 16px; padding: 14px 16px;
+  display: none; gap: 14px; align-items: center; z-index: 10;
+}
+.cc-card.show { display: flex; }
+.cc-card .buddy { margin: 0; width: 64px; }
+.cc-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.cc-head { font-size: 14px; color: var(--muted); }
+.cc-head b { color: var(--ink); font-weight: 600; }
+.cc-cmd { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 15px; background: #0f141c; border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; overflow-wrap: anywhere; }
+.cc-actions { display: flex; gap: 10px; align-items: center; }
+.cc-actions button { min-height: 48px; min-width: 120px; font-size: 16px; }
+#ccAllow { background: var(--ink); color: var(--bg); border-color: var(--ink); font-weight: 600; }
+.cc-demo { font-size: 11px; color: var(--focus); margin-left: auto; }
+
+.toast {
+  position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%);
+  background: #1d2532; border: 1px solid var(--line); border-radius: 10px; padding: 8px 14px; font-size: 13px;
+  opacity: 0; pointer-events: none; transition: opacity .25s;
+}
+.toast.show { opacity: 1; }
+
+/* Une seule chose */
+.now { grid-area: now; justify-content: space-between; gap: 8px; }
+.now-task { font-family: var(--font-display); font-weight: 600; font-size: clamp(20px, 4.2vh, 34px); line-height: 1.15; overflow-wrap: anywhere; text-wrap: balance; }
+.now-task.empty { color: var(--muted); font-family: var(--font-body); font-weight: 400; font-size: 16px; }
+.now-elapsed { font-family: var(--font-display); font-size: clamp(18px, 3.4vh, 28px); font-variant-numeric: tabular-nums; color: var(--accent); }
+.now.long .now-elapsed { color: var(--focus); }
+.now-hint { font-size: 13px; color: var(--muted); min-height: 1.2em; }
+.now.long .now-hint { color: var(--focus); }
+.now form { display: flex; gap: 6px; }
+.now .acts { display: flex; gap: 6px; flex-wrap: wrap; }
+.now .acts button { font-size: 13px; }
+#nowDone { background: var(--ok); border-color: var(--ok); color: #06210f; font-weight: 600; }
+
+/* Idées */
+.ideas { grid-area: ideas; }
+.ideas form { display: flex; gap: 6px; margin: 8px 0 6px; }
+.ideas ul { list-style: none; padding: 0; overflow-y: auto; flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 2px; }
+.ideas li { display: flex; gap: 8px; font-size: 14px; padding: 4px 2px; border-bottom: 1px solid #1c2430; }
+.ideas li time { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; padding-top: 2px; flex: none; }
+.ideas li span { flex: 1; overflow-wrap: anywhere; }
+#ideasClear { font-size: 11px; padding: 3px 8px; }
+#ideasClear.armed { border-color: var(--focus); color: var(--focus); }
+.now input, .ideas input {
+  flex: 1; min-width: 0; font: inherit; font-size: 14px; color: var(--ink);
+  background: #0f141c; border: 1px solid var(--line); border-radius: 9px; padding: 6px 9px;
+}
+
+/* Petits écrans en paysage (téléphone) : 4 widgets, les deux autres sont masqués */
+@media (orientation: landscape) and (max-height: 599px) {
+  .now, .ideas { display: none; }
+}
+/* Tablette en paysage : 6 widgets sur 3 colonnes et 2 rangées */
+@media (orientation: landscape) and (min-height: 600px) {
+  .grid { grid-template-columns: 1.3fr 1fr 1fr; grid-template-areas: "clock focus todo" "now ideas day"; gap: 14px; }
+  .tile { padding: 16px 18px; border-radius: 16px; }
+  .label { font-size: 12px; }
+  .time { font-size: clamp(80px, 17vh, 190px); }
+  .day .big { font-size: clamp(24px, 5vh, 42px); }
+  .todo li, .ideas li { font-size: 15px; padding: 6px 2px; }
+  button { padding: 8px 12px; }
+}
+
+/* Portrait : on empile et on autorise le défilement */
+@media (orientation: portrait) {
+  body { overflow-y: auto; }
+  .grid { height: auto; grid-template-columns: 1fr; grid-template-rows: none;
+    grid-template-areas: "clock" "now" "focus" "todo" "ideas" "day"; }
+  .ideas { min-height: 220px; }
+  .time { font-size: clamp(64px, 24vw, 120px); }
+  .focus .ring-wrap { height: 220px; flex: none; }
+  .todo { min-height: 240px; }
+}
+@media (prefers-reduced-motion: reduce) { .ring .prog { transition: none; } .buddy .whole, .buddy.alert .whole, .buddy.jump .whole { animation: none; } .buddy .gaze { transition: none; } }
+</style>
+</head>
+<body>
+<main class="grid">
+
+  <section class="tile clock" aria-label="Horloge">
+    <div class="label"><span>Heure · Paris</span><span id="week"></span></div>
+    <div>
+      <div class="time" id="time">--:--<span class="sec">--</span></div>
+      <div class="date" id="date"></div>
+      <div class="sub" id="dayOfYear"></div>
+      <div class="next" id="nextEv"></div>
+    </div>
+    <div class="tools">
+      <button id="btnFull" type="button">⛶ Plein écran</button>
+      <button id="btnWake" type="button">Garder l'écran allumé</button>
+      <div class="buddy" id="buddy" role="img" aria-label="Mascotte">
+        <svg viewBox="0 0 100 100" aria-hidden="true">
+          <g class="whole">
+            <path class="leaf" d="M50 22 C 44 10, 32 8, 30 14 C 36 20, 44 22, 50 22 Z"/>
+            <path class="leaf" d="M50 22 C 55 8, 68 6, 71 12 C 65 19, 57 22, 50 22 Z"/>
+            <path class="body" d="M50 22 C 76 22, 92 40, 92 62 C 92 84, 74 94, 50 94 C 26 94, 8 84, 8 62 C 8 40, 24 22, 50 22 Z"/>
+            <ellipse class="cheek" cx="26" cy="70" rx="7" ry="4.5"/>
+            <ellipse class="cheek" cx="74" cy="70" rx="7" ry="4.5"/>
+            <g class="gaze">
+              <ellipse class="eye" cx="37" cy="58" rx="5.5" ry="7.5"/>
+              <ellipse class="eye" cx="63" cy="58" rx="5.5" ry="7.5"/>
+              <path class="arc up" d="M31 60 Q 37 51, 43 60 M57 60 Q 63 51, 69 60"/>
+              <path class="arc down" d="M31 57 Q 37 63, 43 57 M57 57 Q 63 63, 69 57"/>
+            </g>
+            <path class="mouth" d="M45 74 Q 50 78, 55 74"/>
+          </g>
+          <g class="badge"><circle cx="16" cy="28" r="10"/><text x="16" y="33" text-anchor="middle">!</text></g>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <section class="tile focus" id="focusTile" aria-label="Minuteur focus">
+    <div class="label"><span>Focus</span><span class="count" id="fCount">0 faite</span></div>
+    <div class="ring-wrap">
+      <svg class="ring" viewBox="0 0 120 120" aria-hidden="true">
+        <circle class="track" cx="60" cy="60" r="52"></circle>
+        <circle class="prog" id="fProg" cx="60" cy="60" r="52"></circle>
+      </svg>
+      <div class="ring-text">
+        <div class="ring-time" id="fTime">25:00</div>
+        <div class="ring-mode" id="fMode">Concentration</div>
+      </div>
+    </div>
+    <div class="focus-ctrl">
+      <button type="button" data-min="25" class="on">25</button>
+      <button type="button" data-min="50">50</button>
+      <button type="button" data-min="5" data-break="1">Pause 5</button>
+      <button type="button" id="fStart">Démarrer</button>
+      <button type="button" id="fReset" aria-label="Réinitialiser">↺</button>
+    </div>
+  </section>
+
+  <section class="tile todo" aria-label="À faire">
+    <div class="label"><span>À faire aujourd'hui</span><span id="todoLeft"></span></div>
+    <form id="todoForm">
+      <input id="todoInput" type="text" placeholder="Ajouter une tâche…" autocomplete="off" aria-label="Nouvelle tâche">
+      <button type="submit">+</button>
+    </form>
+    <ul id="todoList"></ul>
+  </section>
+
+  <section class="tile now" id="nowTile" aria-label="Une seule chose">
+    <div class="label"><span>Une seule chose</span><button type="button" id="nowRemind" style="font-size:11px;padding:3px 8px">Rappel 60 min</button></div>
+    <div class="now-task empty" id="nowTask">Sur quoi tu travailles maintenant ?</div>
+    <div>
+      <div class="now-elapsed" id="nowElapsed"></div>
+      <div class="now-hint" id="nowHint"></div>
+    </div>
+    <form id="nowForm">
+      <input id="nowInput" type="text" placeholder="Une seule tâche…" autocomplete="off" aria-label="Tâche en cours">
+      <button type="submit">Commencer</button>
+    </form>
+    <div class="acts" id="nowActs" hidden>
+      <button type="button" id="nowDone">Terminé</button>
+      <button type="button" id="nowSwitch">Changer de tâche</button>
+    </div>
+  </section>
+
+  <section class="tile ideas" aria-label="Idées à garder pour plus tard">
+    <div class="label"><span>Idées pour plus tard</span><button type="button" id="ideasClear">Tout effacer</button></div>
+    <form id="ideasForm">
+      <input id="ideasInput" type="text" placeholder="Note-la et reviens à ta tâche…" autocomplete="off" aria-label="Nouvelle idée">
+      <button type="submit">+</button>
+    </form>
+    <ul id="ideasList"></ul>
+  </section>
+
+  <section class="tile day" aria-label="Journée de travail">
+    <div class="label"><span>Journée</span><button type="button" id="btnHours" style="font-size:11px;padding:3px 8px">9h–18h</button></div>
+    <div class="big" id="dayLeft">--</div>
+    <div class="bar"><i id="dayBar" style="width:0%"></i></div>
+    <div class="row"><span id="dayStart">9:00</span><span id="dayPct">0 %</span><span id="dayEnd">18:00</span></div>
+    <div class="sport" id="sport">
+      <div class="sport-head"><span>Sport aujourd'hui</span><button type="button" id="sportPick">Choisir</button></div>
+      <div class="sport-msg" id="sportMsg"></div>
+      <div class="sport-title" id="sportTitle"></div>
+      <button type="button" id="sportDone" hidden>Séance faite</button>
+      <div class="cal-status" id="calStatus"></div>
+    </div>
+    <div class="batt" id="batt">Batterie : <b>indisponible</b></div>
+  </section>
+
+</main>
+<div class="cc-card" id="ccCard" role="alertdialog" aria-labelledby="ccHead">
+  <div class="buddy" id="ccBuddy" role="img" aria-label="Mascotte">
+        <svg viewBox="0 0 100 100" aria-hidden="true">
+          <g class="whole">
+            <path class="leaf" d="M50 22 C 44 10, 32 8, 30 14 C 36 20, 44 22, 50 22 Z"/>
+            <path class="leaf" d="M50 22 C 55 8, 68 6, 71 12 C 65 19, 57 22, 50 22 Z"/>
+            <path class="body" d="M50 22 C 76 22, 92 40, 92 62 C 92 84, 74 94, 50 94 C 26 94, 8 84, 8 62 C 8 40, 24 22, 50 22 Z"/>
+            <ellipse class="cheek" cx="26" cy="70" rx="7" ry="4.5"/>
+            <ellipse class="cheek" cx="74" cy="70" rx="7" ry="4.5"/>
+            <g class="gaze">
+              <ellipse class="eye" cx="37" cy="58" rx="5.5" ry="7.5"/>
+              <ellipse class="eye" cx="63" cy="58" rx="5.5" ry="7.5"/>
+              <path class="arc up" d="M31 60 Q 37 51, 43 60 M57 60 Q 63 51, 69 60"/>
+              <path class="arc down" d="M31 57 Q 37 63, 43 57 M57 57 Q 63 63, 69 57"/>
+            </g>
+            <path class="mouth" d="M45 74 Q 50 78, 55 74"/>
+          </g>
+          <g class="badge"><circle cx="16" cy="28" r="10"/><text x="16" y="33" text-anchor="middle">!</text></g>
+        </svg>
+      </div>
+  <div class="cc-main">
+    <div class="cc-head" id="ccHead"><b>Claude Code</b> · DEMO-101 a besoin de ton accord</div>
+    <div class="cc-cmd" id="ccCmd">git push origin main</div>
+    <div class="cc-actions">
+      <button type="button" id="ccDeny">Refuser</button>
+      <button type="button" id="ccAllow">Autoriser</button>
+      <span class="cc-demo">Démo : rien n'est envoyé</span>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem("edge." + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+    set(k, v) { try { localStorage.setItem("edge." + k, JSON.stringify(v)); } catch {} }
+  };
+  const toast = msg => { const t = $("toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove("show"), 2600); };
+  const pad = n => String(n).padStart(2, "0");
+  const todayKey = () => new Date().toISOString().slice(0, 10);
+
+  // ---------- Horloge ----------
+  const dateFmt = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  function isoWeek(d) {
+    const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    const day = t.getUTCDay() || 7; t.setUTCDate(t.getUTCDate() + 4 - day);
+    const y0 = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
+    return Math.ceil(((t - y0) / 864e5 + 1) / 7);
+  }
+  function tickClock(now) {
+    $("time").innerHTML = `${pad(now.getHours())}:${pad(now.getMinutes())}<span class="sec">${pad(now.getSeconds())}</span>`;
+    $("date").textContent = dateFmt.format(now);
+    $("week").textContent = "Semaine " + isoWeek(now);
+    const start = new Date(now.getFullYear(), 0, 1);
+    const doy = Math.floor((now - start) / 864e5) + 1;
+    const total = (new Date(now.getFullYear() + 1, 0, 1) - start) / 864e5;
+    $("dayOfYear").textContent = `Jour ${doy} sur ${total} · ${total - doy} restants dans l'année`;
+  }
+
+  // ---------- Journée de travail ----------
+  const presets = [[9, 18], [9.5, 18.5], [8.5, 17.5], [10, 19]];
+  let hoursIdx = store.get("hours", 0);
+  const fmtH = h => `${Math.floor(h)}:${pad(Math.round((h % 1) * 60))}`;
+  function renderHoursBtn() { const [s, e] = presets[hoursIdx]; $("btnHours").textContent = `${fmtH(s)} – ${fmtH(e)}`; $("dayStart").textContent = fmtH(s); $("dayEnd").textContent = fmtH(e); }
+  $("btnHours").onclick = () => { hoursIdx = (hoursIdx + 1) % presets.length; store.set("hours", hoursIdx); renderHoursBtn(); tickDay(new Date()); };
+  function tickDay(now) {
+    const [s, e] = presets[hoursIdx];
+    const h = now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600;
+    const wd = now.getDay();
+    let pct, text;
+    if (wd === 0 || wd === 6) { pct = 0; text = "Week-end"; }
+    else if (h < s) { pct = 0; const m = Math.round((s - h) * 60); text = `Début dans ${Math.floor(m / 60)} h ${pad(m % 60)}`; }
+    else if (h >= e) { pct = 100; text = "Journée finie"; }
+    else { pct = (h - s) / (e - s) * 100; const m = Math.ceil((e - h) * 60); text = `${Math.floor(m / 60)} h ${pad(m % 60)} restantes`; }
+    $("dayLeft").textContent = text;
+    $("dayBar").style.width = pct.toFixed(1) + "%";
+    $("dayPct").textContent = Math.round(pct) + " %";
+  }
+
+  // ---------- Batterie ----------
+  if (navigator.getBattery) {
+    navigator.getBattery().then(b => {
+      const r = () => { $("batt").innerHTML = `Batterie : <b>${Math.round(b.level * 100)} %</b>${b.charging ? " · en charge" : ""}`; };
+      r(); b.onlevelchange = r; b.onchargingchange = r;
+    }).catch(() => {});
+  }
+
+  // ---------- Focus ----------
+  const C = 2 * Math.PI * 52;
+  const prog = $("fProg"); prog.style.strokeDasharray = C;
+  let dur = 25 * 60, isBreak = false, endAt = null, remain = dur, timer = null;
+  let sessions = store.get("sessions", { day: todayKey(), n: 0 });
+  if (sessions.day !== todayKey()) sessions = { day: todayKey(), n: 0 };
+  const renderCount = () => $("fCount").textContent = `${sessions.n} faite${sessions.n > 1 ? "s" : ""}`;
+  let audio;
+  function beep() {
+    try {
+      audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+      [0, .35, .7].forEach(t => {
+        const o = audio.createOscillator(), g = audio.createGain();
+        o.frequency.value = 880; o.connect(g); g.connect(audio.destination);
+        g.gain.setValueAtTime(.0001, audio.currentTime + t);
+        g.gain.exponentialRampToValueAtTime(.3, audio.currentTime + t + .02);
+        g.gain.exponentialRampToValueAtTime(.0001, audio.currentTime + t + .25);
+        o.start(audio.currentTime + t); o.stop(audio.currentTime + t + .3);
+      });
+    } catch {}
+    try { navigator.vibrate && navigator.vibrate([200, 100, 200]); } catch {}
+  }
+  function renderFocus() {
+    const s = Math.max(0, Math.ceil(remain));
+    $("fTime").textContent = `${pad(Math.floor(s / 60))}:${pad(s % 60)}`;
+    prog.style.strokeDashoffset = C * (1 - remain / dur);
+    $("fMode").textContent = isBreak ? "Pause" : "Concentration";
+    $("focusTile").classList.toggle("break", isBreak);
+    $("fStart").textContent = endAt ? "Pause" : (remain < dur ? "Reprendre" : "Démarrer");
+  }
+  function tickFocus() {
+    if (!endAt) return;
+    remain = (endAt - Date.now()) / 1000;
+    if (remain <= 0) {
+      endAt = null; remain = 0; beep();
+      if (!isBreak) { sessions.n++; store.set("sessions", sessions); renderCount(); buddyCheer(4000); toast("Session terminée. Pause de 5 minutes ?"); setMode(5, true); }
+      else { toast("Pause terminée."); setMode(25, false); }
+      return;
+    }
+    renderFocus();
+  }
+  function setMode(min, brk) {
+    dur = min * 60; remain = dur; isBreak = !!brk; endAt = null;
+    document.querySelectorAll(".focus-ctrl [data-min]").forEach(b => b.classList.toggle("on", +b.dataset.min === min && !!b.dataset.break === isBreak));
+    renderFocus();
+  }
+  document.querySelectorAll(".focus-ctrl [data-min]").forEach(b => b.onclick = () => setMode(+b.dataset.min, !!b.dataset.break));
+  $("fStart").onclick = () => {
+    try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); audio.resume && audio.resume(); } catch {}
+    if (endAt) { remain = (endAt - Date.now()) / 1000; endAt = null; }
+    else { endAt = Date.now() + remain * 1000; }
+    renderFocus();
+  };
+  $("fReset").onclick = () => setMode(dur / 60, isBreak);
+
+  // ---------- To-do ----------
+  let todos = store.get("todos", [
+    { t: "Exemple : relire la PR du jour", d: false },
+    { t: "Exemple : 10 min de marche à midi", d: true }
+  ]);
+  function renderTodos() {
+    const ul = $("todoList"); ul.innerHTML = "";
+    todos.forEach((it, i) => {
+      const li = document.createElement("li"); if (it.d) li.className = "done";
+      const c = document.createElement("button"); c.type = "button"; c.className = "chk"; c.textContent = it.d ? "✓" : "";
+      c.setAttribute("aria-label", it.d ? "Marquer à faire" : "Marquer fait");
+      c.onclick = () => { it.d = !it.d; save(); };
+      const s = document.createElement("span"); s.textContent = it.t;
+      const x = document.createElement("button"); x.type = "button"; x.className = "del"; x.textContent = "×"; x.setAttribute("aria-label", "Supprimer");
+      x.onclick = () => { todos.splice(i, 1); save(); };
+      li.append(c, s, x); ul.append(li);
+    });
+    const left = todos.filter(t => !t.d).length;
+    $("todoLeft").textContent = todos.length ? `${left} restante${left > 1 ? "s" : ""}` : "";
+  }
+  function save() { store.set("todos", todos); renderTodos(); }
+  $("todoForm").addEventListener("submit", e => {
+    e.preventDefault(); const v = $("todoInput").value.trim(); if (!v) return;
+    todos.push({ t: v, d: false }); $("todoInput").value = ""; save();
+  });
+
+  // ---------- Une seule chose ----------
+  const remindOpts = [45, 60, 90, 0];
+  let remindIdx = store.get("remind", 1);
+  let cur = store.get("now", null); // { t, start, lastNudge }
+  const fmtDur = ms => { const m = Math.floor(ms / 60000); return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${pad(m % 60)}`; };
+  function renderRemind() { const v = remindOpts[remindIdx]; $("nowRemind").textContent = v ? `Rappel ${v} min` : "Rappel coupé"; }
+  $("nowRemind").onclick = () => { remindIdx = (remindIdx + 1) % remindOpts.length; store.set("remind", remindIdx); renderRemind(); };
+  function renderNow() {
+    const has = !!cur;
+    $("nowTask").textContent = has ? cur.t : "Sur quoi tu travailles maintenant ?";
+    $("nowTask").classList.toggle("empty", !has);
+    $("nowForm").hidden = has; $("nowActs").hidden = !has;
+    if (!has) { $("nowElapsed").textContent = ""; $("nowHint").textContent = ""; $("nowTile").classList.remove("long"); }
+  }
+  function tickNow() {
+    if (!cur) return;
+    const el = Date.now() - cur.start;
+    $("nowElapsed").textContent = "Depuis " + fmtDur(el);
+    const v = remindOpts[remindIdx];
+    const long = v && el >= v * 60000;
+    $("nowTile").classList.toggle("long", !!long);
+    $("nowHint").textContent = long ? "Pause : bois un verre d'eau et lève-toi 2 minutes." : "";
+    if (v && Date.now() - (cur.lastNudge || cur.start) >= v * 60000) {
+      cur.lastNudge = Date.now(); store.set("now", cur);
+      beep(); toast(`${v} minutes sur la même tâche : petite pause ?`);
+    }
+  }
+  $("nowForm").addEventListener("submit", e => {
+    e.preventDefault(); const v = $("nowInput").value.trim(); if (!v) return;
+    try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); audio.resume && audio.resume(); } catch {}
+    cur = { t: v, start: Date.now(), lastNudge: Date.now() }; $("nowInput").value = ""; store.set("now", cur); renderNow(); tickNow();
+  });
+  $("nowDone").onclick = () => {
+    todos.push({ t: cur.t, d: true }); save();
+    toast(`Bravo : « ${cur.t} » terminé en ${fmtDur(Date.now() - cur.start)}.`);
+    cur = null; store.set("now", null); renderNow();
+  };
+  $("nowSwitch").onclick = () => { $("nowInput").value = cur.t; cur = null; store.set("now", null); renderNow(); $("nowInput").focus(); };
+
+  // ---------- Idées ----------
+  let ideas = store.get("ideas", [{ t: "Exemple : tester le cache Redis sur l'export", at: "14:32" }]);
+  function renderIdeas() {
+    const ul = $("ideasList"); ul.innerHTML = "";
+    ideas.slice().reverse().forEach(it => {
+      const li = document.createElement("li");
+      const tm = document.createElement("time"); tm.textContent = it.at;
+      const sp = document.createElement("span"); sp.textContent = it.t;
+      li.append(tm, sp); ul.append(li);
+    });
+  }
+  $("ideasForm").addEventListener("submit", e => {
+    e.preventDefault(); const v = $("ideasInput").value.trim(); if (!v) return;
+    const n = new Date(); ideas.push({ t: v, at: `${pad(n.getHours())}:${pad(n.getMinutes())}` });
+    store.set("ideas", ideas); $("ideasInput").value = ""; renderIdeas(); toast("Notée. Retour à ta tâche.");
+  });
+  let clearArmed = null;
+  $("ideasClear").onclick = () => {
+    const b = $("ideasClear");
+    if (!clearArmed) { b.classList.add("armed"); b.textContent = "Confirmer ?"; clearArmed = setTimeout(() => { clearArmed = null; b.classList.remove("armed"); b.textContent = "Tout effacer"; }, 3000); return; }
+    clearTimeout(clearArmed); clearArmed = null; b.classList.remove("armed"); b.textContent = "Tout effacer";
+    ideas = []; store.set("ideas", ideas); renderIdeas();
+  };
+
+  // ---------- Agenda Google ----------
+  let calEvents = null, calUnsub = null, calDay = null, mcpNs = null;
+  const isoLocal = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T00:00:00`;
+  const hhmm = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  function calInput() {
+    const a = new Date(); a.setHours(0, 0, 0, 0);
+    const b = new Date(a); b.setDate(b.getDate() + 1);
+    return { startTime: isoLocal(a), endTime: isoLocal(b), orderBy: "startTime", pageSize: 50 };
+  }
+  function setCalStatus(text, btn) {
+    const el = $("calStatus"); el.textContent = text;
+    if (btn) { const b = document.createElement("button"); b.type = "button"; b.textContent = btn.label; b.onclick = btn.onclick; el.append(b); }
+  }
+  function onCalData(result) {
+    const p = result && result.payload;
+    calEvents = p && Array.isArray(p.events) ? p.events : [];
+    const at = result.cache ? new Date(result.cache.storedAt) : new Date();
+    setCalStatus(`Google Agenda · à jour à ${hhmm(at)}`);
+    tickSport(new Date()); tickNext(new Date());
+  }
+  function onCalError(err) {
+    const code = err && err.code;
+    if (code === "needs_reauth") { calEvents = null; setCalStatus("Google Agenda est déconnecté. Reconnecte-le dans les connecteurs de Claude."); }
+    else if (code === "server_not_connected" || code === "selection_required") { calEvents = null; setCalStatus("Ajoute Google Agenda dans les connecteurs de Claude pour remplir cette ligne."); }
+    else if (code === "approval_required") {
+      calEvents = null;
+      setCalStatus("La page a besoin de ton accord pour lire l'agenda.", { label: "Autoriser l'agenda", onclick: async () => {
+        try { onCalData(await mcpNs.callTool("Google Calendar", "list_events", calInput())); } catch (e) { onCalError(e); }
+      } });
+    }
+    else if (code === "not_in_manifest" || code === "blocked_by_policy") { calEvents = null; setCalStatus("L'agenda n'est pas autorisé pour cette page. Choisis ta séance à la main."); }
+    else if (code === "not_granted" || code === "capability_disabled" || code === "capability_removed") { calEvents = null; setCalStatus("Ouvre la page dans Claude pour la relier à ton agenda."); }
+    else setCalStatus(calEvents ? "Agenda momentanément injoignable, dernières infos affichées." : "Agenda momentanément injoignable. Nouvel essai automatique.");
+    tickSport(new Date()); tickNext(new Date());
+  }
+  function watchCal() {
+    if (!mcpNs) return;
+    if (calUnsub) calUnsub();
+    calDay = todayKey();
+    calUnsub = mcpNs.watchTool("Google Calendar", "list_events", calInput(),
+      ev => ev.type === "data" ? onCalData(ev.result) : onCalError(ev.error),
+      { refetchInterval: 10 * 60 * 1000, cache: { staleTime: 5 * 60 * 1000, gcTime: 24 * 3600 * 1000 } });
+  }
+  setCalStatus("Connexion à Google Agenda…");
+  (async () => {
+    try { mcpNs = window.claude && typeof window.claude.use === "function" ? await window.claude.use("mcp") : null; } catch { mcpNs = null; }
+    if (!mcpNs) { setCalStatus("Ouvre la page dans Claude pour la relier à ton agenda. En attendant, choisis ta séance à la main."); return; }
+    watchCal();
+  })();
+  function tickNext(now) {
+    if (!calEvents) { $("nextEv").textContent = ""; return; }
+    const nx = calEvents.find(e => e.start && e.start.dateTime && new Date(e.start.dateTime) > now);
+    $("nextEv").textContent = nx ? `Ensuite · ${hhmm(new Date(nx.start.dateTime))} · ${nx.summary || "Sans titre"}` : "Plus rien dans ton agenda aujourd'hui.";
+  }
+
+  // ---------- Sport ----------
+  const KINDS = {
+    Course: { prep: "Prépare-toi pour aller courir. Tenue, baskets, bouteille.", now: "C'est l'heure d'aller courir.", toast: "Prépare-toi pour aller courir." },
+    Muscu: { prep: "Prépare-toi pour la salle. Tes tâches sont faites ou rattrapables demain ? Alors vas-y.", now: "C'est l'heure d'aller à la salle. Le sport t'aidera à être plus disponible demain.", toast: "Prépare-toi pour aller à la salle." },
+    Marche: { prep: "Prépare-toi pour ta marche. Chaussures et veste.", now: "C'est l'heure de ta marche.", toast: "Prépare-toi pour ta marche." }
+  };
+  const manualOpts = [null, { label: "Course", h: 12.5 }, { label: "Muscu", h: 17 }];
+  const isCancelled = t => /^\s*❌/.test(t) || /annul/i.test(t);
+  function kindOf(t) {
+    if (/🏃|\bcourse\b|footing|\brun\b/i.test(t)) return "Course";
+    if (/💪|muscu|full[- ]?body|\bsalle\b/i.test(t)) return "Muscu";
+    if (/🚶|\bmarche\b/i.test(t)) return "Marche";
+    return null;
+  }
+  function calSport(now) {
+    if (!calEvents) return null;
+    const list = calEvents.filter(e => e.start && e.start.dateTime).map(e => ({
+      t: e.summary || "", s: new Date(e.start.dateTime), e: new Date((e.end && e.end.dateTime) || e.start.dateTime)
+    }));
+    const sessions = list.filter(x => !isCancelled(x.t)).map(x => ({ ...x, kind: kindOf(x.t) })).filter(x => x.kind);
+    const pick = sessions.find(x => x.e > now) || sessions[sessions.length - 1];
+    if (pick) return { label: pick.kind, h: pick.s.getHours() + pick.s.getMinutes() / 60, title: pick.t, cal: true };
+    const c = list.find(x => isCancelled(x.t));
+    return { none: true, cancelled: c ? c.t : null };
+  }
+  let sp = store.get("sport", null);
+  if (!sp || sp.day !== todayKey()) sp = { day: todayKey(), idx: 0, manual: false, done: false, nudged: "" };
+  const saveSport = () => store.set("sport", sp);
+  $("sportPick").onclick = () => {
+    try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); audio.resume && audio.resume(); } catch {}
+    if (!sp.manual) { sp.manual = true; sp.idx = 1; }
+    else if (sp.idx < manualOpts.length - 1) sp.idx++;
+    else if (calEvents) { sp.manual = false; sp.idx = 0; }
+    else sp.idx = 0;
+    sp.done = false; saveSport(); tickSport(new Date());
+  };
+  $("sportDone").onclick = () => { sp.done = true; saveSport(); toast("Séance faite. Bien joué."); tickSport(new Date()); };
+  function tickSport(now) {
+    if (sp.day !== todayKey()) { sp = { day: todayKey(), idx: 0, manual: false, done: false, nudged: "" }; saveSport(); }
+    if (mcpNs && calDay !== todayKey()) watchCal();
+    const box = $("sport");
+    box.classList.remove("soon", "now", "done");
+    let o = null, emptyMsg = "Rien de prévu. Touche « Choisir » : course à midi ou muscu à 17h.";
+    const fromCal = !sp.manual ? calSport(now) : null;
+    if (fromCal && !fromCal.none) o = fromCal;
+    else if (fromCal && fromCal.none) emptyMsg = fromCal.cancelled ? `Pas de séance aujourd'hui : ${fromCal.cancelled.replace(/^\s*❌\s*/, "")}` : "Pas de séance dans ton agenda aujourd'hui.";
+    else o = manualOpts[sp.idx];
+    if (sp.manual) o = manualOpts[sp.idx];
+    $("sportPick").textContent = o ? `${o.cal ? "Agenda · " : ""}${o.label} ${fmtH(o.h)}` : (sp.manual ? "Rien" : "Choisir");
+    $("sportTitle").textContent = o && o.cal ? o.title : "";
+    let msg, showDone = false;
+    if (!o) msg = sp.manual ? "Pas de sport aujourd'hui." : emptyMsg;
+    else if (sp.done) { msg = "Séance faite. Bien joué."; box.classList.add("done"); }
+    else {
+      const k = KINDS[o.label];
+      const m = (o.h - (now.getHours() + now.getMinutes() / 60)) * 60;
+      const key = `${o.label}@${o.h}`;
+      if (m > 30) msg = o.label === "Course" ? `${o.label} à ${fmtH(o.h)}. Ta tenue est prête ?` : `${o.label} à ${fmtH(o.h)}.`;
+      else if (m > 0) {
+        box.classList.add("soon");
+        msg = `Dans ${Math.ceil(m)} min : ${k.prep.charAt(0).toLowerCase()}${k.prep.slice(1)}`;
+        if (sp.nudged !== key) { sp.nudged = key; saveSport(); beep(); toast(k.toast); }
+      } else if (m > -90) { box.classList.add("now"); showDone = true; msg = k.now; }
+      else { msg = "Séance faite ?"; showDone = true; }
+    }
+    $("sportMsg").textContent = msg;
+    $("sportDone").hidden = !showDone;
+  }
+
+  // ---------- Mascotte ----------
+  const buddy = $("buddy"), ccBuddy = $("ccBuddy");
+  const gazes = [[0,0],[-5,-2],[5,-2],[-4,3],[4,3],[0,-4]];
+  let buddyTemp = null, buddyTempUntil = 0;
+  function moveGaze(b, x, y) { const g = b.querySelector(".gaze"); if (g) g.style.transform = `translate(${x}px, ${y}px)`; }
+  function blinkLoop() {
+    [buddy, ccBuddy].forEach(b => { b.classList.add("blink"); setTimeout(() => b.classList.remove("blink"), 140); });
+    setTimeout(blinkLoop, 2800 + Math.random() * 3500);
+  }
+  function gazeLoop() {
+    if (!buddy.classList.contains("focus")) { const [x, y] = gazes[Math.floor(Math.random() * gazes.length)]; moveGaze(buddy, x, y); }
+    setTimeout(gazeLoop, 2500 + Math.random() * 3000);
+  }
+  function buddyCheer(ms = 2500) { buddyTemp = "happy jump"; buddyTempUntil = Date.now() + ms; }
+  function buddyState(now) {
+    if (Date.now() < buddyTempUntil && buddyTemp) return buddyTemp;
+    if ($("ccCard").classList.contains("show")) return "alert";
+    const sb = $("sport").classList;
+    if (sb.contains("soon") || sb.contains("now")) return "alert";
+    if ($("nowTile").classList.contains("long")) return "alert";
+    if (endAt && !isBreak) return "focus";
+    if (isBreak && endAt) return "happy";
+    if (now.getHours() >= 22 || now.getHours() < 6) return "sleepy";
+    return "";
+  }
+  function tickBuddy(now) {
+    const st = buddyState(now);
+    ["focus", "happy", "jump", "alert", "sleepy"].forEach(c => buddy.classList.toggle(c, st.split(" ").includes(c)));
+    if (st === "focus") moveGaze(buddy, 0, 3);
+  }
+  buddy.onclick = () => { buddyCheer(1200); tickBuddy(new Date()); };
+  setTimeout(blinkLoop, 1500); setTimeout(gazeLoop, 2000);
+  ccBuddy.classList.add("alert");
+  $("sportDone").addEventListener("click", () => buddyCheer());
+  $("nowDone").addEventListener("click", () => buddyCheer());
+
+  // ---------- Carte Claude Code (démo, en attendant le service du PC) ----------
+  function showDemoCard() { $("ccCard").classList.add("show"); beep(); }
+  function hideCard(msg) { $("ccCard").classList.remove("show"); toast(msg); }
+  $("ccAllow").onclick = () => { hideCard("Démo : autorisé (rien n'a été envoyé)."); buddyCheer(); };
+  $("ccDeny").onclick = () => hideCard("Démo : refusé (rien n'a été envoyé).");
+  function checkHash() { if (location.hash === "#demo-claude") showDemoCard(); }
+  window.addEventListener("hashchange", checkHash); checkHash();
+  buddy.addEventListener("dblclick", showDemoCard);
+
+  // ---------- Plein écran & écran allumé ----------
+  $("btnFull").onclick = async () => {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else { await document.documentElement.requestFullscreen(); try { await screen.orientation.lock("landscape"); } catch {} }
+    } catch { toast("Plein écran refusé ici : ouvre la page dans Chrome."); }
+  };
+  let lock = null, wantWake = false;
+  async function requestWake() {
+    try { lock = await navigator.wakeLock.request("screen"); $("btnWake").classList.add("on"); $("btnWake").textContent = "Écran maintenu allumé";
+      lock.addEventListener("release", () => { lock = null; $("btnWake").classList.remove("on"); $("btnWake").textContent = "Garder l'écran allumé"; });
+    } catch { wantWake = false; toast("Impossible ici : ouvre la page dans Chrome, ou règle la mise en veille du téléphone."); }
+  }
+  $("btnWake").onclick = async () => {
+    if (lock) { wantWake = false; await lock.release(); return; }
+    wantWake = true; await requestWake();
+  };
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && wantWake && !lock) requestWake(); });
+
+  // ---------- Boucle ----------
+  function loop() { const now = new Date(); tickClock(now); tickDay(now); tickFocus(); tickNow(); tickSport(now); tickBuddy(now); if (now.getSeconds() === 0) tickNext(now); }
+  renderHoursBtn(); renderCount(); renderTodos(); renderRemind(); renderNow(); renderIdeas(); setMode(25, false); loop();
+  setInterval(loop, 250);
+})();
+</script>
+</body>
+</html>
