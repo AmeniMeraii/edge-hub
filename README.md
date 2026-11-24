@@ -2,7 +2,7 @@
 
 A small ASP.NET Core service that runs on a Windows PC and turns a spare Android tablet into an always-on side screen: focus timer, today's agenda, meeting prep, Claude Code status, Spotify controls and light PC stats. The tablet only needs a browser.
 
-> **Work in progress.** Only the console mode below works today. Features, screenshots and setup instructions will come with the first release.
+> **Work in progress.** Today the PC serves the current screen and streams its stats and the current track; the screen does not show them yet. Features, screenshots and setup instructions will come with the first release.
 
 ## Build
 
@@ -15,14 +15,22 @@ dotnet test
 
 ## Run the service
 
-Give the service an access token once (32 characters or more), outside git:
+Give the service an access token once, outside git: 32 characters or more, only letters, digits, `-` and `_`, since it travels in an address. This PowerShell line prints a suitable random one:
 
 ```powershell
-dotnet user-secrets set Security:Token "<a long random token>" --project src/EdgeHub
+$bytes = New-Object byte[] 24; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes); ($bytes | ForEach-Object { $_.ToString('x2') }) -join ''
+```
+
+During development, keep it in user secrets, then run the service:
+
+```powershell
+dotnet user-secrets set Security:Token "<token>" --project src/EdgeHub
 dotnet run --project src/EdgeHub
 ```
 
-Open `http://localhost:5080/?k=<token>` once: the token moves into a cookie and the address is cleaned. The screen then gets the PC's stats and the current track every second from `/api/stream`. By default the service only answers on this PC; `src/EdgeHub/appsettings.example.json` explains the settings, including the one that opens it to the tablet.
+A published service reads `appsettings.Local.json` next to `EdgeHub.exe` instead (user secrets only exist in development). `src/EdgeHub/appsettings.example.json` explains every setting, including the one that opens the service to the tablet; by default it only answers on this PC.
+
+Open `http://<PC address>:5080/?k=<token>` once on the screen: the token moves into a cookie and the address is cleaned. The page then receives the PC's stats and the current track every second from `/api/stream`. Prefer opening it on the tablet rather than in the PC's own browser: cookies are not tied to a port, so a browser on the PC would also send this one to other local development servers.
 
 ## Console mode
 
