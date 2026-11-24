@@ -473,6 +473,8 @@ button.on { border-color: var(--accent); color: var(--accent); }
     $("fStart").textContent = endAt ? "Pause" : (remain < dur ? "Reprendre" : "Démarrer");
   }
   function tickFocus() {
+    // L'écran reste ouvert jour et nuit : le compteur de sessions repart de zéro à minuit.
+    if (sessions.day !== todayKey()) { sessions = { day: todayKey(), n: 0 }; store.set("sessions", sessions); renderCount(); }
     if (!endAt) return;
     remain = (endAt - Date.now()) / 1000;
     if (remain <= 0) {
@@ -632,7 +634,7 @@ button.on { border-color: var(--accent); color: var(--accent); }
   setCalStatus("Connexion à Google Agenda…");
   (async () => {
     try { mcpNs = window.claude && typeof window.claude.use === "function" ? await window.claude.use("mcp") : null; } catch { mcpNs = null; }
-    if (!mcpNs) { setCalStatus("Ouvre la page dans Claude pour la relier à ton agenda. En attendant, choisis ta séance à la main."); return; }
+    if (!mcpNs) { setCalStatus("L'agenda n'est pas encore relié à cet écran : choisis ta séance à la main."); return; }
     watchCal();
   })();
   function tickNext(now) {
@@ -776,17 +778,39 @@ button.on { border-color: var(--accent); color: var(--accent); }
 
   // ---------- Lien avec le PC (flux temps réel) ----------
   // Les dernières données restent affichées si le PC ne répond plus ; seul l'indicateur « PC hors ligne » apparaît.
-  const live = { latest: null, lastMessageAt: Date.now() };
+  // Le flux se reconnecte seul, y compris après un refus ou une connexion morte sans erreur (PC en veille, Wi-Fi perdu).
+  const live = { latest: null, lastMessageAt: Date.now(), openedAt: 0, refused: false, source: null, retry: null };
   window.edgeHub = live;
   function connectLive() {
     if (!window.EventSource) return;
+    clearTimeout(live.retry);
+    if (live.source) live.source.close();
+    live.openedAt = Date.now();
     const source = new EventSource("/api/stream");
+    live.source = source;
     source.addEventListener("state", e => {
-      try { live.latest = JSON.parse(e.data); live.lastMessageAt = Date.now(); } catch {}
+      try { live.latest = JSON.parse(e.data); live.lastMessageAt = Date.now(); live.refused = false; } catch {}
       tickLive();
     });
+    source.onerror = () => {
+      // Une erreur réseau est retentée par le navigateur ; un refus (401) ou une erreur du serveur ferme le flux pour de bon.
+      if (source.readyState === EventSource.CLOSED) { checkRefused(); live.retry = setTimeout(connectLive, 5000); }
+    };
   }
-  function tickLive() { $("pcOffline").hidden = Date.now() - live.lastMessageAt <= 5000; }
+  async function checkRefused() {
+    try {
+      const response = await fetch("/api/stream", { cache: "no-store", signal: AbortSignal.timeout(3000) });
+      live.refused = response.status === 401;
+      if (response.body) response.body.cancel();
+    } catch { live.refused = false; }
+  }
+  function tickLive() {
+    const silent = Date.now() - live.lastMessageAt;
+    const badge = $("pcOffline");
+    badge.hidden = silent <= 5000;
+    badge.textContent = live.refused ? "Jeton refusé : rouvre l'adresse complète avec ?k=" : "PC hors ligne";
+    if (silent > 15000 && Date.now() - live.openedAt > 15000) connectLive();
+  }
   connectLive();
 
   // ---------- Boucle ----------
