@@ -588,59 +588,45 @@ button.on { border-color: var(--accent); color: var(--accent); }
     ideas = []; store.set("ideas", ideas); renderIdeas();
   };
 
-  // ---------- Agenda Google ----------
-  let calEvents = null, calUnsub = null, calDay = null, mcpNs = null;
-  const isoLocal = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T00:00:00`;
+  // ---------- Agenda (lu par le PC) ----------
+  // Le PC lit l'agenda iCal et choisit la séance de sport ; la page interroge /api/calendar/today chaque minute.
+  // Les données gardent leur jour : si le PC dort après minuit, celles de la veille ne sont plus utilisées.
+  let calData = null;
   const hhmm = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  function calInput() {
-    const a = new Date(); a.setHours(0, 0, 0, 0);
-    const b = new Date(a); b.setDate(b.getDate() + 1);
-    return { startTime: isoLocal(a), endTime: isoLocal(b), orderBy: "startTime", pageSize: 50 };
-  }
-  function setCalStatus(text, btn) {
-    const el = $("calStatus"); el.textContent = text;
-    if (btn) { const b = document.createElement("button"); b.type = "button"; b.textContent = btn.label; b.onclick = btn.onclick; el.append(b); }
-  }
-  function onCalData(result) {
-    const p = result && result.payload;
-    calEvents = p && Array.isArray(p.events) ? p.events : [];
-    const at = result.cache ? new Date(result.cache.storedAt) : new Date();
-    setCalStatus(`Google Agenda · à jour à ${hhmm(at)}`);
+  const calToday = () => (calData && calData.day === todayKey() ? calData : null);
+  function setCalStatus(text) { $("calStatus").textContent = text; }
+  async function refreshCalendar() {
+    let failure = null;
+    try {
+      const response = await fetch("/api/calendar/today", { cache: "no-store" });
+      if (response.status === 401) failure = "Jeton refusé (rouvre l'adresse complète avec ?k=…)";
+      else if (!response.ok) failure = "Le PC a répondu par une erreur";
+      else {
+        const today = await response.json();
+        if (!today.configured) { calData = null; setCalStatus("Agenda non relié au PC : choisis ta séance à la main."); }
+        else if (!today.available) failure = "Agenda momentanément injoignable";
+        else if (today.day !== todayKey()) { calData = null; setCalStatus("L'agenda du PC n'est pas sur le même jour que cet écran : choisis ta séance à la main."); }
+        else { calData = today; setCalStatus(readStatus(today.readAt)); }
+      }
+    } catch { failure = "PC injoignable"; }
+    if (failure) setCalStatus(calToday() ? `${failure} : dernières infos du jour affichées.` : `${failure} : choisis ta séance à la main.`);
     tickSport(new Date()); tickNext(new Date());
   }
-  function onCalError(err) {
-    const code = err && err.code;
-    if (code === "needs_reauth") { calEvents = null; setCalStatus("Google Agenda est déconnecté. Reconnecte-le dans les connecteurs de Claude."); }
-    else if (code === "server_not_connected" || code === "selection_required") { calEvents = null; setCalStatus("Ajoute Google Agenda dans les connecteurs de Claude pour remplir cette ligne."); }
-    else if (code === "approval_required") {
-      calEvents = null;
-      setCalStatus("La page a besoin de ton accord pour lire l'agenda.", { label: "Autoriser l'agenda", onclick: async () => {
-        try { onCalData(await mcpNs.callTool("Google Calendar", "list_events", calInput())); } catch (e) { onCalError(e); }
-      } });
-    }
-    else if (code === "not_in_manifest" || code === "blocked_by_policy") { calEvents = null; setCalStatus("L'agenda n'est pas autorisé pour cette page. Choisis ta séance à la main."); }
-    else if (code === "not_granted" || code === "capability_disabled" || code === "capability_removed") { calEvents = null; setCalStatus("Ouvre la page dans Claude pour la relier à ton agenda."); }
-    else setCalStatus(calEvents ? "Agenda momentanément injoignable, dernières infos affichées." : "Agenda momentanément injoignable. Nouvel essai automatique.");
-    tickSport(new Date()); tickNext(new Date());
+  // Le PC garde la dernière copie lisible quand le téléchargement échoue : l'heure affichée est celle de sa lecture.
+  function readStatus(readAt) {
+    if (!readAt) return "Agenda lu par le PC";
+    const read = new Date(readAt);
+    const when = read.toDateString() === new Date().toDateString() ? `à ${hhmm(read)}` : `le ${pad(read.getDate())}/${pad(read.getMonth() + 1)} à ${hhmm(read)}`;
+    return Date.now() - read.getTime() > 30 * 60 * 1000
+      ? `Agenda · dernière lecture ${when}, le PC n'arrive plus à le télécharger`
+      : `Agenda · lu ${when}`;
   }
-  function watchCal() {
-    if (!mcpNs) return;
-    if (calUnsub) calUnsub();
-    calDay = todayKey();
-    calUnsub = mcpNs.watchTool("Google Calendar", "list_events", calInput(),
-      ev => ev.type === "data" ? onCalData(ev.result) : onCalError(ev.error),
-      { refetchInterval: 10 * 60 * 1000, cache: { staleTime: 5 * 60 * 1000, gcTime: 24 * 3600 * 1000 } });
-  }
-  setCalStatus("Connexion à Google Agenda…");
-  (async () => {
-    try { mcpNs = window.claude && typeof window.claude.use === "function" ? await window.claude.use("mcp") : null; } catch { mcpNs = null; }
-    if (!mcpNs) { setCalStatus("L'agenda n'est pas encore relié à cet écran : choisis ta séance à la main."); return; }
-    watchCal();
-  })();
+  setCalStatus("Lecture de l'agenda…");
   function tickNext(now) {
-    if (!calEvents) { $("nextEv").textContent = ""; return; }
-    const nx = calEvents.find(e => e.start && e.start.dateTime && new Date(e.start.dateTime) > now);
-    $("nextEv").textContent = nx ? `Ensuite · ${hhmm(new Date(nx.start.dateTime))} · ${nx.summary || "Sans titre"}` : "Plus rien dans ton agenda aujourd'hui.";
+    const today = calToday();
+    if (!today) { $("nextEv").textContent = ""; return; }
+    const nx = today.events.find(e => !e.allDay && new Date(e.start) > now);
+    $("nextEv").textContent = nx ? `Ensuite · ${hhmm(new Date(nx.start))} · ${nx.title || "Sans titre"}` : "Plus rien dans ton agenda aujourd'hui.";
   }
 
   // ---------- Sport ----------
@@ -650,23 +636,15 @@ button.on { border-color: var(--accent); color: var(--accent); }
     Marche: { prep: "Prépare-toi pour ta marche. Chaussures et veste.", now: "C'est l'heure de ta marche.", toast: "Prépare-toi pour ta marche." }
   };
   const manualOpts = [null, { label: "Course", h: 12.5 }, { label: "Muscu", h: 17 }];
-  const isCancelled = t => /^\s*❌/.test(t) || /annul/i.test(t);
-  function kindOf(t) {
-    if (/🏃|\bcourse\b|footing|\brun\b/i.test(t)) return "Course";
-    if (/💪|muscu|full[- ]?body|\bsalle\b/i.test(t)) return "Muscu";
-    if (/🚶|\bmarche\b/i.test(t)) return "Marche";
-    return null;
-  }
-  function calSport(now) {
-    if (!calEvents) return null;
-    const list = calEvents.filter(e => e.start && e.start.dateTime).map(e => ({
-      t: e.summary || "", s: new Date(e.start.dateTime), e: new Date((e.end && e.end.dateTime) || e.start.dateTime)
-    }));
-    const sessions = list.filter(x => !isCancelled(x.t)).map(x => ({ ...x, kind: kindOf(x.t) })).filter(x => x.kind);
-    const pick = sessions.find(x => x.e > now) || sessions[sessions.length - 1];
-    if (pick) return { label: pick.kind, h: pick.s.getHours() + pick.s.getMinutes() / 60, title: pick.t, cal: true };
-    const c = list.find(x => isCancelled(x.t));
-    return { none: true, cancelled: c ? c.t : null };
+  // La séance retenue vient du PC (règles de la section 4.2 du plan, mots-clés dans sa configuration).
+  function calSport() {
+    const today = calToday();
+    if (!today) return null;
+    if (today.sport) {
+      const start = new Date(today.sport.start);
+      return { label: today.sport.kind, h: start.getHours() + start.getMinutes() / 60, title: today.sport.title, cal: true };
+    }
+    return { none: true, cancelled: today.cancelledTitle };
   }
   let sp = store.get("sport", null);
   if (!sp || sp.day !== todayKey()) sp = { day: todayKey(), idx: 0, manual: false, done: false, nudged: "" };
@@ -675,18 +653,17 @@ button.on { border-color: var(--accent); color: var(--accent); }
     try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); audio.resume && audio.resume(); } catch {}
     if (!sp.manual) { sp.manual = true; sp.idx = 1; }
     else if (sp.idx < manualOpts.length - 1) sp.idx++;
-    else if (calEvents) { sp.manual = false; sp.idx = 0; }
+    else if (calToday()) { sp.manual = false; sp.idx = 0; }
     else sp.idx = 0;
     sp.done = false; saveSport(); tickSport(new Date());
   };
   $("sportDone").onclick = () => { sp.done = true; saveSport(); toast("Séance faite. Bien joué."); tickSport(new Date()); };
   function tickSport(now) {
     if (sp.day !== todayKey()) { sp = { day: todayKey(), idx: 0, manual: false, done: false, nudged: "" }; saveSport(); }
-    if (mcpNs && calDay !== todayKey()) watchCal();
     const box = $("sport");
     box.classList.remove("soon", "now", "done");
     let o = null, emptyMsg = "Rien de prévu. Touche « Choisir » : course à midi ou muscu à 17h.";
-    const fromCal = !sp.manual ? calSport(now) : null;
+    const fromCal = !sp.manual ? calSport() : null;
     if (fromCal && !fromCal.none) o = fromCal;
     else if (fromCal && fromCal.none) emptyMsg = fromCal.cancelled ? `Pas de séance aujourd'hui : ${fromCal.cancelled.replace(/^\s*❌\s*/, "")}` : "Pas de séance dans ton agenda aujourd'hui.";
     else o = manualOpts[sp.idx];
@@ -697,7 +674,8 @@ button.on { border-color: var(--accent); color: var(--accent); }
     if (!o) msg = sp.manual ? "Pas de sport aujourd'hui." : emptyMsg;
     else if (sp.done) { msg = "Séance faite. Bien joué."; box.classList.add("done"); }
     else {
-      const k = KINDS[o.label];
+      // Un type de séance ajouté dans la configuration du PC reçoit des messages génériques.
+      const k = KINDS[o.label] || { prep: `Prépare-toi pour ta séance : ${o.label}.`, now: `C'est l'heure de ta séance : ${o.label}.`, toast: `Prépare-toi : ${o.label}.` };
       const m = (o.h - (now.getHours() + now.getMinutes() / 60)) * 60;
       const key = `${o.label}@${o.h}`;
       if (m > 30) msg = o.label === "Course" ? `${o.label} à ${fmtH(o.h)}. Ta tenue est prête ?` : `${o.label} à ${fmtH(o.h)}.`;
@@ -816,6 +794,7 @@ button.on { border-color: var(--accent); color: var(--accent); }
   // ---------- Boucle ----------
   function loop() { const now = new Date(); tickClock(now); tickDay(now); tickFocus(); tickNow(); tickSport(now); tickBuddy(now); tickLive(); if (now.getSeconds() === 0) tickNext(now); }
   renderHoursBtn(); renderCount(); renderTodos(); renderRemind(); renderNow(); renderIdeas(); setMode(25, false); loop();
+  refreshCalendar(); setInterval(refreshCalendar, 60 * 1000);
   setInterval(loop, 250);
 })();
 </script>
