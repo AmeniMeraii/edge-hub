@@ -6,8 +6,9 @@ public sealed record InterfaceInfo(string Id, bool IsUp, bool IsLoopbackOrTunnel
 public static class ActiveInterface
 {
     /// <summary>
-    /// The interface that carries the PC's traffic: up, not a loopback or tunnel, with a default gateway if any has one,
-    /// and the busiest among those.
+    /// Fallback guess of the interface that carries the PC's traffic, used when Windows cannot tell which one its default
+    /// route uses: up, not a loopback or tunnel, with a default gateway if any has one, and the one that moved the most
+    /// bytes since it came up.
     /// </summary>
     public static InterfaceInfo? Pick(IReadOnlyList<InterfaceInfo> interfaces)
     {
