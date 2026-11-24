@@ -2,7 +2,7 @@
 
 A small ASP.NET Core service that runs on a Windows PC and turns a spare Android tablet into an always-on side screen: focus timer, today's agenda, meeting prep, Claude Code status, Spotify controls and light PC stats. The tablet only needs a browser.
 
-> **Work in progress.** Today the PC serves the current screen and streams its stats and the current track; the screen does not show them yet. Features, screenshots and setup instructions will come with the first release.
+> **Work in progress.** Today the PC serves the current screen, reads today's calendar for the sport line and the next event, and streams its stats and the current track (the screen does not show those yet). Features, screenshots and setup instructions will come with the first release.
 
 ## Build
 
@@ -31,6 +31,16 @@ dotnet run --project src/EdgeHub
 A published service reads `appsettings.Local.json` next to `EdgeHub.exe` instead (user secrets only exist in development). `src/EdgeHub/appsettings.example.json` explains every setting, including the one that opens the service to the tablet; by default it only answers on this PC.
 
 Open `http://<PC address>:5080/?k=<token>` once on the screen: the token moves into a cookie and the address is cleaned. The page then receives the PC's stats and the current track every second from `/api/stream`. Prefer opening it on the tablet rather than in the PC's own browser: cookies are not tied to a port, so a browser on the PC would also send this one to other local development servers.
+
+## Calendar
+
+The sport line and the « Ensuite » line under the clock come from your calendar's secret iCal address (Google Calendar: Settings and sharing, Integrate calendar). Keep it with the token, outside git:
+
+```powershell
+dotnet user-secrets set Calendar:IcalUrl "<secret iCal address>" --project src/EdgeHub
+```
+
+The PC downloads it at most every 5 minutes and never writes the address in its logs. Recurring events are unfolded with their moved, excluded or cancelled occurrences, in the `Calendar:TimeZone` time zone (Europe/Paris by default). A session is recognised from its title: 🏃, « course », « footing » or « run » for a run, 💪, « muscu », « full body » or « salle » for strength, 🚶 or « marche » for a walk; a title that starts with ❌ or contains « annul » is a cancelled session. The keywords can be changed in `Calendar:Sport` (see `appsettings.example.json`). Without an address, the screen keeps the manual choice.
 
 ## Console mode
 
