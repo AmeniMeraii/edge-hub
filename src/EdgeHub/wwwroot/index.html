@@ -599,17 +599,26 @@ button.on { border-color: var(--accent); color: var(--accent); }
     let failure = null;
     try {
       const response = await fetch("/api/calendar/today", { cache: "no-store" });
-      if (response.status === 401) failure = "Jeton refusé : rouvre l'adresse complète avec ?k=";
+      if (response.status === 401) failure = "Jeton refusé (rouvre l'adresse complète avec ?k=…)";
       else if (!response.ok) failure = "Le PC a répondu par une erreur";
       else {
         const today = await response.json();
         if (!today.configured) { calData = null; setCalStatus("Agenda non relié au PC : choisis ta séance à la main."); }
         else if (!today.available) failure = "Agenda momentanément injoignable";
-        else { calData = today; setCalStatus(`Agenda · à jour à ${hhmm(new Date())}`); }
+        else if (today.day !== todayKey()) { calData = null; setCalStatus("L'agenda du PC n'est pas sur le même jour que cet écran : choisis ta séance à la main."); }
+        else { calData = today; setCalStatus(readStatus(today.readAt)); }
       }
     } catch { failure = "PC injoignable"; }
-    if (failure) setCalStatus(calToday() ? `${failure}, dernières infos du jour affichées.` : `${failure} : choisis ta séance à la main.`);
+    if (failure) setCalStatus(calToday() ? `${failure} : dernières infos du jour affichées.` : `${failure} : choisis ta séance à la main.`);
     tickSport(new Date()); tickNext(new Date());
+  }
+  // Le PC garde la dernière copie lisible quand le téléchargement échoue : l'heure affichée est celle de sa lecture.
+  function readStatus(readAt) {
+    if (!readAt) return "Agenda lu par le PC";
+    const read = new Date(readAt);
+    return Date.now() - read.getTime() > 30 * 60 * 1000
+      ? `Agenda · dernière lecture à ${hhmm(read)}, le PC n'arrive plus à le télécharger`
+      : `Agenda · lu à ${hhmm(read)}`;
   }
   setCalStatus("Lecture de l'agenda…");
   function tickNext(now) {
