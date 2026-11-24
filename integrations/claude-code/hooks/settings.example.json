@@ -1,0 +1,43 @@
+{
+  "hooks": {
+    "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "type": "http",
+            "url": "http://localhost:5080/hooks/claude/permission",
+            "timeout": 75,
+            "headers": { "Authorization": "Bearer $EDGEHUB_HOOK_TOKEN" },
+            "allowedEnvVars": ["EDGEHUB_HOOK_TOKEN"]
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "http",
+            "url": "http://localhost:5080/hooks/claude/notification",
+            "timeout": 5,
+            "headers": { "Authorization": "Bearer $EDGEHUB_HOOK_TOKEN" },
+            "allowedEnvVars": ["EDGEHUB_HOOK_TOKEN"]
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "http",
+            "url": "http://localhost:5080/hooks/claude/stop",
+            "timeout": 5,
+            "headers": { "Authorization": "Bearer $EDGEHUB_HOOK_TOKEN" },
+            "allowedEnvVars": ["EDGEHUB_HOOK_TOKEN"]
+          }
+        ]
+      }
+    ]
+  }
+}
