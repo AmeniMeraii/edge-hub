@@ -1,6 +1,8 @@
 var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddHealthChecks();
+
 var app = builder.Build();
 
-app.MapGet("/health", () => Results.Ok());
+app.MapHealthChecks("/health");
 
 app.Run();

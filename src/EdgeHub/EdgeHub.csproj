@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <!-- Windows TFM: needed later for the Windows media controls (Spotify) and performance counters. -->
+    <!-- Windows TFM: needed for the Windows media controls (Spotify, Windows.Media.Control). -->
     <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
   </PropertyGroup>
 
