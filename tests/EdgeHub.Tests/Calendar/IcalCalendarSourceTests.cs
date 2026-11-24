@@ -61,6 +61,44 @@ public sealed class IcalCalendarSourceTests : IDisposable
     }
 
     [Fact]
+    public async Task Keeps_the_last_calendar_when_a_download_is_not_a_calendar()
+    {
+        // A captive portal or a proxy can answer 200 with an HTML page.
+        IcalCalendarSource source = Source();
+        await source.GetEventsAsync(Thursday, Ct);
+
+        _web.Body = "<!DOCTYPE html><html><body>Connexion au Wi-Fi</body></html>";
+        _clock.Advance(TimeSpan.FromMinutes(6));
+
+        Assert.Contains(await source.GetEventsAsync(Thursday, Ct), e => e.Title == "🏃 Footing du jeudi");
+    }
+
+    [Fact]
+    public async Task Waits_a_minute_before_trying_again_after_a_failed_download()
+    {
+        _web.Fail = true;
+        IcalCalendarSource source = Source();
+        await Assert.ThrowsAsync<CalendarUnavailableException>(() => source.GetEventsAsync(Thursday, Ct));
+
+        _clock.Advance(TimeSpan.FromSeconds(30));
+        await Assert.ThrowsAsync<CalendarUnavailableException>(() => source.GetEventsAsync(Thursday, Ct));
+        Assert.Equal(1, _web.Requests);
+
+        _web.Fail = false;
+        _clock.Advance(TimeSpan.FromSeconds(31));
+        Assert.NotEmpty(await source.GetEventsAsync(Thursday, Ct));
+        Assert.Equal(2, _web.Requests);
+    }
+
+    [Fact]
+    public async Task Any_failure_while_downloading_counts_as_unreachable()
+    {
+        _web.Throw = new InvalidOperationException("The character set provided in ContentType is invalid.");
+
+        await Assert.ThrowsAsync<CalendarUnavailableException>(() => Source().GetEventsAsync(Thursday, Ct));
+    }
+
+    [Fact]
     public async Task Says_the_calendar_is_unavailable_when_nothing_could_ever_be_read()
     {
         _web.Fail = true;
@@ -69,9 +107,9 @@ public sealed class IcalCalendarSourceTests : IDisposable
     }
 
     [Fact]
-    public async Task Never_writes_the_secret_link_in_a_log()
+    public async Task Never_writes_the_secret_link_in_a_log_even_when_an_error_message_holds_it()
     {
-        _web.Fail = true;
+        _web.Throw = new HttpRequestException($"Connection refused ({SecretLink})");
 
         await Assert.ThrowsAsync<CalendarUnavailableException>(() => Source().GetEventsAsync(Thursday, Ct));
 
@@ -89,12 +127,21 @@ public sealed class IcalCalendarSourceTests : IDisposable
 
         public bool Fail { get; set; }
 
+        public string Body { get; set; } = Demo;
+
+        public Exception? Throw { get; set; }
+
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Requests++;
+            if (Throw is not null)
+            {
+                return Task.FromException<HttpResponseMessage>(Throw);
+            }
+
             return Task.FromResult(Fail
                 ? new HttpResponseMessage(HttpStatusCode.NotFound)
-                : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(Demo) });
+                : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(Body) });
         }
     }
 
