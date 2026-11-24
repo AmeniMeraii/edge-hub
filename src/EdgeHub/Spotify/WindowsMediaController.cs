@@ -1,16 +1,20 @@
-using System.Runtime.InteropServices;
 using Windows.Media.Control;
 
 namespace EdgeHub.Spotify;
 
 /// <summary>
 /// Reads and drives the media session through Windows' media controls (GSMTC). Spotify's desktop app shows up there,
-/// so neither the Spotify Web API nor a Premium account is needed.
+/// so neither the Spotify Web API nor a Premium account is needed. Calls go to another process: each one has a time
+/// limit, and any failure means "no session" rather than an exception.
 /// </summary>
 public sealed class WindowsMediaController : IMediaController
 {
+    private static readonly TimeSpan ReadLimit = TimeSpan.FromMilliseconds(500);
+    private static readonly TimeSpan CommandLimit = TimeSpan.FromSeconds(2);
+
     private readonly GlobalSystemMediaTransportControlsSessionManager _manager;
     private readonly TimeProvider _time;
+    private MediaState? _lastState;
 
     private WindowsMediaController(GlobalSystemMediaTransportControlsSessionManager manager, TimeProvider time)
     {
@@ -26,15 +30,17 @@ public sealed class WindowsMediaController : IMediaController
 
     public async Task<MediaState?> GetStateAsync(CancellationToken cancellationToken)
     {
-        GlobalSystemMediaTransportControlsSession? session = ChosenSession();
-        if (session is null)
-        {
-            return null;
-        }
-
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        limit.CancelAfter(ReadLimit);
         try
         {
-            var properties = await session.TryGetMediaPropertiesAsync().AsTask(cancellationToken).ConfigureAwait(false);
+            GlobalSystemMediaTransportControlsSession? session = ChosenSession();
+            if (session is null)
+            {
+                return _lastState = null;
+            }
+
+            var properties = await session.TryGetMediaPropertiesAsync().AsTask(limit.Token).ConfigureAwait(false);
             var playback = session.GetPlaybackInfo();
             var timeline = session.GetTimelineProperties();
 
@@ -43,7 +49,7 @@ public sealed class WindowsMediaController : IMediaController
             TimeSpan position = PlaybackPosition.Estimate(
                 timeline.Position - timeline.StartTime, timeline.LastUpdatedTime, _time.GetUtcNow(), isPlaying, duration);
 
-            return new MediaState(
+            return _lastState = new MediaState(
                 session.SourceAppUserModelId,
                 properties.Title ?? "",
                 properties.Artist ?? "",
@@ -52,35 +58,43 @@ public sealed class WindowsMediaController : IMediaController
                 position,
                 duration);
         }
-        catch (COMException)
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            // The app closed between listing the sessions and reading this one.
-            return null;
+            // The media app is slow to answer: show what it said last time rather than nothing.
+            return _lastState;
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            // The app closed or refused the call (the interop layer maps these errors to various exception types).
+            return _lastState = null;
         }
     }
 
     public Task<bool> PlayPauseAsync(CancellationToken cancellationToken) =>
-        SendAsync(s => s.TryTogglePlayPauseAsync().AsTask(cancellationToken));
+        SendAsync(s => s.TryTogglePlayPauseAsync(), cancellationToken);
 
     public Task<bool> NextAsync(CancellationToken cancellationToken) =>
-        SendAsync(s => s.TrySkipNextAsync().AsTask(cancellationToken));
+        SendAsync(s => s.TrySkipNextAsync(), cancellationToken);
 
     public Task<bool> PreviousAsync(CancellationToken cancellationToken) =>
-        SendAsync(s => s.TrySkipPreviousAsync().AsTask(cancellationToken));
+        SendAsync(s => s.TrySkipPreviousAsync(), cancellationToken);
 
-    private async Task<bool> SendAsync(Func<GlobalSystemMediaTransportControlsSession, Task<bool>> command)
+    private async Task<bool> SendAsync(
+        Func<GlobalSystemMediaTransportControlsSession, Windows.Foundation.IAsyncOperation<bool>> command,
+        CancellationToken cancellationToken)
     {
-        GlobalSystemMediaTransportControlsSession? session = ChosenSession();
-        if (session is null)
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        limit.CancelAfter(CommandLimit);
+        try
+        {
+            GlobalSystemMediaTransportControlsSession? session = ChosenSession();
+            return session is not null && await command(session).AsTask(limit.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             return false;
         }
-
-        try
-        {
-            return await command(session).ConfigureAwait(false);
-        }
-        catch (COMException)
+        catch (Exception e) when (e is not OperationCanceledException)
         {
             return false;
         }
