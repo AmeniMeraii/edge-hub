@@ -487,6 +487,7 @@ appsettings.Local.json
 *.ics
 !tests/EdgeHub.Tests/Fixtures/**/*.ics
 .env.*
+!.env.example
 *.pem
 *.key
 

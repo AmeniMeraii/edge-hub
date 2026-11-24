@@ -27,6 +27,11 @@ indent_size = 2
 end_of_line = crlf
 charset = utf-8-bom
 
+# PowerShell scripts: CRLF and BOM, so Windows PowerShell 5.1 reads accented text correctly
+[*.{ps1,psm1,psd1}]
+end_of_line = crlf
+charset = utf-8-bom
+
 # C# files
 [*.cs]
 

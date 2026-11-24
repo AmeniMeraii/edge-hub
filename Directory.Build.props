@@ -10,6 +10,7 @@
     <!-- Needed for IDE0005 (unused usings) to run at build time; missing XML docs are not reported. -->
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <PublishDocumentationFile>false</PublishDocumentationFile>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true'">
