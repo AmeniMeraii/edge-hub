@@ -13,6 +13,17 @@ dotnet build
 dotnet test
 ```
 
+## Run the service
+
+Give the service an access token once (32 characters or more), outside git:
+
+```powershell
+dotnet user-secrets set Security:Token "<a long random token>" --project src/EdgeHub
+dotnet run --project src/EdgeHub
+```
+
+Open `http://localhost:5080/?k=<token>` once: the token moves into a cookie and the address is cleaned. The screen then gets the PC's stats and the current track every second from `/api/stream`. By default the service only answers on this PC; `src/EdgeHub/appsettings.example.json` explains the settings, including the one that opens it to the tablet.
+
 ## Console mode
 
 Shows CPU, memory, network and disk usage and the current track, refreshed every second:
