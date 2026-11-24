@@ -72,6 +72,6 @@ So the reader:
 
 Re-reading a 28 MB file every 30 seconds is wasteful. The reader should remember, for each file, the position it reached and the metadata found so far, and only parse the bytes appended since. Lines that fail to parse are skipped.
 
-## Open questions
+## Decisions
 
-- **Session name.** The plan expects sessions to be named after the ticket, but renaming is rare in practice. Either rename sessions with `/rename`, or display the generated title, with the `cwd` folder name as the last fallback.
+- **Session name.** Sessions are renamed after the ticket with `/rename`, every time. The reader shows `customTitle`, and falls back to `aiTitle`, then to the `cwd` folder name, for sessions that were not renamed.
