@@ -36,9 +36,15 @@ builder.Logging.KeepRequestAddressesOutOfLogs();
 ServerOptions server = builder.Configuration.GetSection(ServerOptions.Section).Get<ServerOptions>() ?? new ServerOptions();
 builder.WebHost.ConfigureKestrel(kestrel =>
 {
-    foreach (System.Net.IPAddress address in server.ListenAddresses())
+    // The decision is made (and tested) in ServerOptions; ListenLocalhost and ListenAnyIP add Kestrel's fallback
+    // when one address family is unavailable.
+    if (server.ListenAddresses().All(System.Net.IPAddress.IsLoopback))
     {
-        kestrel.Listen(address, server.Port);
+        kestrel.ListenLocalhost(server.Port);
+    }
+    else
+    {
+        kestrel.ListenAnyIP(server.Port);
     }
 });
 
