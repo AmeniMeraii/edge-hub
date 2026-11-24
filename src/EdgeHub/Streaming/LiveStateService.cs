@@ -24,7 +24,7 @@ public sealed partial class LiveStateService(
         {
             snapshot = stats.Sample();
         }
-        catch (Exception e) when (e is not OperationCanceledException)
+        catch (Exception e) when (!cancellationToken.IsCancellationRequested)
         {
             LogStatsFailed(logger, e);
         }
@@ -34,7 +34,7 @@ public sealed partial class LiveStateService(
         {
             track = await media.GetStateAsync(cancellationToken).ConfigureAwait(false);
         }
-        catch (Exception e) when (e is not OperationCanceledException)
+        catch (Exception e) when (!cancellationToken.IsCancellationRequested)
         {
             LogMediaFailed(logger, e);
         }

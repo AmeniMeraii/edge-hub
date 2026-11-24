@@ -40,6 +40,33 @@ public sealed class LiveStateServiceTests
         Assert.Same(Track, hub.Latest?.Media);
     }
 
+    [Theory]
+    [InlineData(typeof(InvalidOperationException))]
+    [InlineData(typeof(OperationCanceledException))]
+    public async Task A_failing_media_source_does_not_stop_the_stats_from_being_published(Type failure)
+    {
+        var stats = new FakeSystemStats();
+        var hub = new LiveStateHub();
+        var media = new ThrowingMediaController((Exception)Activator.CreateInstance(failure)!);
+        var service = new LiveStateService(stats, media, hub, TimeProvider.System, NullLogger<LiveStateService>.Instance);
+
+        await service.PublishOnceAsync(Ct);
+
+        Assert.Same(stats.Snapshot, hub.Latest?.Stats);
+        Assert.Null(hub.Latest?.Media);
+    }
+
+    private sealed class ThrowingMediaController(Exception failure) : IMediaController
+    {
+        public Task<MediaState?> GetStateAsync(CancellationToken cancellationToken) => Task.FromException<MediaState?>(failure);
+
+        public Task<bool> PlayPauseAsync(CancellationToken cancellationToken) => Task.FromException<bool>(failure);
+
+        public Task<bool> NextAsync(CancellationToken cancellationToken) => Task.FromException<bool>(failure);
+
+        public Task<bool> PreviousAsync(CancellationToken cancellationToken) => Task.FromException<bool>(failure);
+    }
+
     private sealed class ThrowingSystemStats : ISystemStats
     {
         public SystemSnapshot? Latest => null;

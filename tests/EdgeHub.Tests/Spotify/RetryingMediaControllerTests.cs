@@ -34,6 +34,28 @@ public sealed class RetryingMediaControllerTests
     }
 
     [Fact]
+    public async Task A_creation_that_hangs_counts_as_a_failure_and_is_retried_later()
+    {
+        var inner = new FakeMediaController(accept: true) { State = Track };
+        Func<CancellationToken, Task<IMediaController>> hangsThenWorks = async cancellationToken =>
+        {
+            if (++_attempts == 1)
+            {
+                await Task.Delay(Timeout.Infinite, cancellationToken);
+            }
+
+            return inner;
+        };
+        using var media = new RetryingMediaController(hangsThenWorks, _clock, creationLimit: TimeSpan.FromMilliseconds(100));
+
+        Assert.Null(await media.GetStateAsync(Ct));
+        _clock.Advance(TimeSpan.FromSeconds(31));
+
+        Assert.Same(Track, await media.GetStateAsync(Ct));
+        Assert.Equal(2, _attempts);
+    }
+
+    [Fact]
     public async Task Without_media_controls_it_has_no_session_and_tries_again_after_thirty_seconds()
     {
         var inner = new FakeMediaController(accept: true) { State = Track };
