@@ -1,4 +1,6 @@
 using System.ComponentModel.DataAnnotations;
+using System.Globalization;
+using System.Text;
 
 namespace EdgeHub.Calendar;
 
@@ -52,11 +54,11 @@ public sealed class CalendarOptions : IValidatableObject
 
         // An empty keyword would make every event a session; an empty cancel word or marker would cancel them all.
         bool kindsBroken = Sport?.Kinds is { } kinds && kinds.Any(kind =>
-            kind is null || string.IsNullOrWhiteSpace(kind.Name) || kind.Keywords is not { Count: > 0 } || kind.Keywords.Any(string.IsNullOrWhiteSpace));
+            kind is null || string.IsNullOrWhiteSpace(kind.Name) || kind.Keywords is not { Count: > 0 } || !kind.Keywords.All(IsUsableKeyword));
         if (Sport is null || Sport.Kinds is null || kindsBroken)
         {
             yield return new ValidationResult(
-                "Calendar:Sport:Kinds : chaque type de séance a besoin d'un nom et d'au moins un mot-clé, sans mot-clé vide.",
+                "Calendar:Sport:Kinds : chaque type de séance a besoin d'un nom et d'au moins un mot-clé ; un mot-clé contient une lettre, un chiffre ou un emoji.",
                 [nameof(Sport)]);
         }
 
@@ -68,4 +70,10 @@ public sealed class CalendarOptions : IValidatableObject
                 [nameof(Sport)]);
         }
     }
+
+    /// <summary>A keyword made only of spaces or punctuation (« - ») would match far too much.</summary>
+    private static bool IsUsableKeyword(string? keyword) =>
+        keyword is not null
+        && (keyword.TrimEnd('*').Any(char.IsLetterOrDigit)
+            || keyword.EnumerateRunes().Any(rune => Rune.GetUnicodeCategory(rune) == UnicodeCategory.OtherSymbol));
 }

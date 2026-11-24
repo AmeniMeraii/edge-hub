@@ -47,6 +47,8 @@ public sealed class CalendarOptionsTests
         new SportRules { Kinds = [new SportKind { Name = "", Keywords = ["yoga"] }] },
         new SportRules { Kinds = [new SportKind { Name = "Yoga", Keywords = [] }] },
         new SportRules { Kinds = [new SportKind { Name = "Yoga", Keywords = null! }] },
+        new SportRules { Kinds = [new SportKind { Name = "Yoga", Keywords = ["-"] }] },
+        new SportRules { Kinds = [new SportKind { Name = "Yoga", Keywords = ["*"] }] },
         new SportRules { CancelledWords = ["  "] },
         new SportRules { CancelledMarkers = [""] },
         new SportRules { CancelledWords = null! },

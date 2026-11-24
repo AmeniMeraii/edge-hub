@@ -91,10 +91,12 @@ public sealed class SportDetector
     }
 
     /// <summary>
-    /// A keyword with letters matches at the start of a word, whatever the case: « footing » matches « Footings »,
-    /// « muscu » matches « Musculation », but « run » does not match « Prune ». Accented letters count as letters, so
-    /// « marche » matches neither « Marché » nor « Démarche ». Spaces and hyphens inside a keyword are optional
-    /// (« full body » matches « Full-body »). A keyword without letters, such as an emoji, matches anywhere.
+    /// A keyword with letters matches a whole word, whatever the case, as the original screen did for « course »,
+    /// « run », « salle » and « marche »: « Faire les courses » is not a run. A keyword ending with « * » matches the
+    /// start of a word, as the original did for « footing », « muscu » and « full body »: « footing* » matches
+    /// « Footings ». Accented letters count as letters, so « marche » matches neither « Marché » nor « Démarche ».
+    /// Spaces and hyphens inside a keyword are optional (« full body* » matches « Full-body »). A keyword without
+    /// letters, such as an emoji, matches anywhere.
     /// </summary>
     private static Func<string, bool> Matcher(string keyword)
     {
@@ -103,8 +105,10 @@ public sealed class SportDetector
             return title => title.Contains(keyword, StringComparison.Ordinal);
         }
 
-        string body = string.Join("[- ]?", keyword.Split([' ', '-'], StringSplitOptions.RemoveEmptyEntries).Select(Regex.Escape));
-        var pattern = new Regex($@"(?<!\w){body}", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
+        bool wordStart = keyword.EndsWith('*');
+        string body = string.Join("[- ]?", keyword.TrimEnd('*').Split([' ', '-'], StringSplitOptions.RemoveEmptyEntries).Select(Regex.Escape));
+        string end = wordStart ? "" : @"(?!\w)";
+        var pattern = new Regex($@"(?<!\w){body}{end}", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
         return pattern.IsMatch;
     }
 }

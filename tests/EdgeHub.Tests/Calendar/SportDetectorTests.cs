@@ -25,7 +25,6 @@ public sealed class SportDetectorTests
     [InlineData("Footing tranquille", "Course")]
     [InlineData("Footings de la semaine", "Course")]
     [InlineData("FOOTING_matin", "Course")]
-    [InlineData("Running du dimanche", "Course")]
     [InlineData("Run club du midi", "Course")]
     [InlineData("Musculation dos", "Muscu")]
     [InlineData("Salle avec le coach", "Muscu")]
@@ -36,7 +35,15 @@ public sealed class SportDetectorTests
     [InlineData("Marché de Noël", null)]
     [InlineData("Parcours client", null)]
     [InlineData("Démarche administrative", null)]
-    public void Matches_keywords_at_the_start_of_a_word_whatever_the_case(string title, string? kind)
+    [InlineData("Faire les courses", null)]
+    [InlineData("Courses Carrefour", null)]
+    [InlineData("Revue Runtime .NET", null)]
+    [InlineData("Runbook de prod", null)]
+    [InlineData("Running du dimanche", null)]
+    [InlineData("Salles de réunion à réserver", null)]
+    [InlineData("Marchepied à acheter", null)]
+    [InlineData("Marché de Rungis", null)]
+    public void Matches_whole_words_or_word_starts_as_the_original_screen_did(string title, string? kind)
     {
         Assert.Equal(kind, Detector.KindOf(title));
     }
@@ -120,6 +127,21 @@ public sealed class SportDetectorTests
     }
 
     [Fact]
+    public void A_keyword_ending_with_a_star_matches_the_start_of_a_word()
+    {
+        var detector = new SportDetector(new SportRules
+        {
+            Kinds = [new SportKind { Name = "Course", Keywords = ["run*"] }],
+            CancelledMarkers = ["❌"],
+            CancelledWords = ["annul"],
+        });
+
+        Assert.Equal("Course", detector.KindOf("Running du dimanche"));
+        Assert.Equal("Course", detector.KindOf("Run club"));
+        Assert.Null(detector.KindOf("Prune et café"));
+    }
+
+    [Fact]
     public void Keywords_come_from_the_settings()
     {
         var rules = new SportRules
@@ -131,6 +153,7 @@ public sealed class SportDetectorTests
         var detector = new SportDetector(rules);
 
         Assert.Equal("Natation", detector.KindOf("Piscine municipale"));
+        Assert.Null(detector.KindOf("Piscines du quartier"));
         Assert.Null(detector.KindOf("🏃 Footing"));
         Assert.True(detector.IsCancelled("🚫 Piscine"));
         Assert.True(detector.IsCancelled("Piscine reportée"));
