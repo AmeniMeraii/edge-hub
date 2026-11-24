@@ -68,3 +68,51 @@ Une entrée par choix important : le contexte, les options, la décision et ce q
 - **Options** : .NET 8 ; .NET 10.
 - **Décision** : .NET 10.
 - **Conséquences** : .NET 8 n'est plus maintenu depuis le 10 novembre 2026, alors que .NET 10 l'est jusqu'en novembre 2028. La version du SDK est fixée dans `global.json`. Pour essayer le projet, il faut installer .NET 10.
+
+## D12 · Mode console dans le service plutôt qu'une appli à part · 24/11/2026
+- **Contexte** : la phase 1 prévoyait une application console qui affiche les stats du PC et le morceau Spotify, pour vérifier ces lectures avant de construire l'écran.
+- **Options** : un projet console séparé ; une option `--console` du service.
+- **Décision** : l'option `--console` du service.
+- **Conséquences** : la console et l'écran lisent les stats et Spotify avec le même code, il n'y a qu'un projet à maintenir. La console reste utile pour tester sans la tablette.
+
+## D13 · Spotify par les contrôles média de Windows · 24/11/2026
+- **Contexte** : l'écran doit afficher le morceau en cours et piloter la lecture.
+- **Options** : l'API Web Spotify ; les contrôles média de Windows, où l'appli Spotify pour PC s'affiche déjà.
+- **Décision** : les contrôles média de Windows.
+- **Conséquences** : ni compte développeur, ni connexion OAuth, ni Premium, et ça marche sans internet. En contrepartie, aimer un morceau ou choisir l'appareil n'est pas possible. L'API Web pourra s'ajouter plus tard si je le demande.
+
+## D14 · Service limité à ce PC par défaut · 24/11/2026
+- **Contexte** : la tablette joint le PC par le Wi-Fi, mais un service ouvert au réseau est joignable par tous les appareils connectés, y compris sur un Wi-Fi public.
+- **Options** : écouter sur le réseau dès l'installation ; n'écouter que sur ce PC, et ouvrir au réseau par un réglage.
+- **Décision** : ce PC seulement par défaut. Le réglage `Server:ListenOnNetwork` ouvre le service à la tablette.
+- **Conséquences** : une installation neuve n'expose rien. Pour la tablette, il faudra activer ce réglage, classer le Wi-Fi en « Privé » et autoriser le port 5080 dans le pare-feu pour le profil Privé seulement.
+
+## D15 · Jeton donné une fois dans l'adresse, puis gardé dans un cookie · 24/11/2026
+- **Contexte** : la tablette n'a pas de compte. Il faut empêcher un autre appareil du réseau de lire l'écran ou de piloter le PC.
+- **Options** : aucune protection ; le jeton dans chaque adresse ; le jeton donné une fois, puis gardé par le navigateur.
+- **Décision** : le jeton est donné à la première ouverture (`?k=`), puis gardé dans un cookie inaccessible aux scripts et limité au site, valable 400 jours et renouvelé à chaque appel. Les commandes envoyées depuis un autre site sont refusées.
+- **Conséquences** : l'adresse est nettoyée tout de suite, donc le jeton ne reste pas dans l'historique de la tablette. Pour les hooks de Claude Code (phase 4c), il restera à décider s'ils utilisent le même jeton et si le service n'en garde que l'empreinte.
+
+## D16 · Agenda lu par le PC avec l'adresse iCal secrète · 24/11/2026
+- **Contexte** : le prototype lisait l'agenda par le connecteur Claude, qui ne fonctionne que dans l'appli Claude.
+- **Options** : le connecteur Claude ; l'API Google Agenda avec une connexion OAuth ; l'adresse secrète au format iCal.
+- **Décision** : l'adresse secrète iCal, téléchargée par le PC au plus toutes les 5 minutes.
+- **Conséquences** : aucun compte Google à connecter, et l'écran fonctionne sans Claude. Cette adresse donne accès à tout l'agenda : elle reste dans les user-secrets ou le fichier local, n'est jamais écrite dans les journaux, et devra être réinitialisée dans Google Agenda si elle fuit. Si le téléchargement échoue, l'écran garde la dernière copie lisible pendant un jour au plus et affiche son heure de lecture.
+
+## D17 · Une branche par phase, relue par deux agents · 24/11/2026
+- **Contexte** : il fallait fixer comment le code arrive dans `main`.
+- **Options** : une branche par fonctionnalité ; une branche par phase.
+- **Décision** : une branche par phase, créée depuis `main`. Une PR, relue par deux agents qui challengent le code, puis les corrections, puis une fusion par commit de fusion. Les branches de phase sont gardées.
+- **Conséquences** : chaque phase arrive d'un bloc, avec ses relectures et leurs corrections visibles dans la PR. Le découpage par fonctionnalité était trop fin : on aurait dit des tâches, pas des user stories.
+
+## D18 · Journaux du service dans un fichier, avec Serilog · 24/11/2026
+- **Contexte** : le plan prévoit des journaux dans un fichier tournant sous `%LOCALAPPDATA%\EdgeHub\logs`, pour comprendre un problème après coup. Le logging intégré de .NET n'écrit pas dans un fichier.
+- **Options** : écrire un petit fournisseur maison ; Serilog, une bibliothèque répandue et maintenue.
+- **Décision** : Serilog, avec un fichier par jour et les plus anciens supprimés.
+- **Conséquences** : une dépendance de plus, mais connue. Les règles actuelles s'appliquent aussi au fichier : ni l'adresse iCal, ni le jeton, ni l'adresse des appareils qui se connectent.
+
+## D19 · Polices servies par le PC · 24/11/2026
+- **Contexte** : l'écran charge ses polices, Chakra Petch et IBM Plex Sans, depuis Google Fonts.
+- **Options** : garder Google Fonts ; servir les fichiers depuis le PC.
+- **Décision** : les servir depuis le PC.
+- **Conséquences** : l'écran s'affiche pareil sans internet, et la tablette ne contacte plus Google à chaque ouverture. Les deux polices sont sous licence libre (SIL Open Font License) : leurs fichiers peuvent aller dans le dépôt, avec la licence.
