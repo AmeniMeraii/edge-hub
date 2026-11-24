@@ -29,41 +29,43 @@ public static class IcalReader
             throw new FormatException("The text is not a whole iCal calendar.");
         }
 
-        var timeZones = new List<string>();
+        // Time zones are read by name (Ical.Net does not use the VTIMEZONE blocks), so only the events are kept.
         var events = new List<(string Uid, string Block)>();
+        int unreadable = 0;
         for (int i = 0; i < lines.Length; i++)
         {
-            bool isEvent = IsLine(lines[i], "BEGIN:VEVENT");
-            if (!isEvent && !IsLine(lines[i], "BEGIN:VTIMEZONE"))
+            if (!IsLine(lines[i], "BEGIN:VEVENT"))
             {
                 continue;
             }
 
-            int end = EndOfBlock(lines, i);
+            int end = EndOfEvent(lines, i);
             if (end < 0)
             {
-                break;
+                // Never closed: drop it and carry on from the line that interrupted it.
+                unreadable++;
+                i = Interruption(lines, i) - 1;
+                continue;
             }
 
             string[] block = lines[i..(end + 1)];
-            if (isEvent)
+            if (RepeatsTooOften(block))
             {
-                events.Add((UidOf(block) ?? $"no-uid-{events.Count}", string.Join('\n', block)));
+                unreadable++;
             }
             else
             {
-                timeZones.Add(string.Join('\n', block));
+                events.Add((UidOf(block) ?? $"no-uid-{events.Count}", string.Join('\n', block)));
             }
 
             i = end;
         }
 
         var series = new List<IcalCalendar>();
-        int unreadable = 0;
         foreach (var group in events.GroupBy(e => e.Uid, StringComparer.Ordinal))
         {
             string text = "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Edge Hub//Series//EN\n"
-                + string.Join('\n', timeZones.Concat(group.Select(e => e.Block)))
+                + string.Join('\n', group.Select(e => e.Block))
                 + "\nEND:VCALENDAR\n";
             try
             {
@@ -97,13 +99,21 @@ public static class IcalReader
     private static bool IsLine(string line, string expected) =>
         line.TrimEnd().Equals(expected, StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>The index of the line that closes the block opened at <paramref name="start"/>, or -1 when it is cut off.</summary>
-    private static int EndOfBlock(string[] lines, int start)
+    /// <summary>
+    /// The index of the line that closes the event opened at <paramref name="start"/>, or -1 when it is never closed:
+    /// cut off, or interrupted by another event or by the end of the calendar.
+    /// </summary>
+    private static int EndOfEvent(string[] lines, int start)
     {
         int depth = 0;
         for (int i = start; i < lines.Length; i++)
         {
             string line = lines[i].TrimEnd();
+            if (i > start && (IsLine(line, "BEGIN:VEVENT") || IsLine(line, "END:VCALENDAR")))
+            {
+                return -1;
+            }
+
             if (line.StartsWith("BEGIN:", StringComparison.OrdinalIgnoreCase))
             {
                 depth++;
@@ -117,8 +127,56 @@ public static class IcalReader
         return -1;
     }
 
-    /// <summary>The block's UID, after unfolding continuation lines (a long UID is split over several lines).</summary>
+    /// <summary>The line after <paramref name="start"/> where an unclosed event is interrupted (or the end of the text).</summary>
+    private static int Interruption(string[] lines, int start)
+    {
+        for (int i = start + 1; i < lines.Length; i++)
+        {
+            if (IsLine(lines[i], "BEGIN:VEVENT") || IsLine(lines[i], "END:VCALENDAR"))
+            {
+                return i;
+            }
+        }
+
+        return lines.Length;
+    }
+
+    /// <summary>
+    /// Rules repeating every hour or faster cannot be made in Google Calendar, and unfolding one started years ago takes
+    /// minutes: such series are left out.
+    /// </summary>
+    private static bool RepeatsTooOften(string[] block) =>
+        Unfolded(block).Any(line => line.StartsWith("RRULE", StringComparison.OrdinalIgnoreCase)
+            && (line.Contains("FREQ=HOURLY", StringComparison.OrdinalIgnoreCase)
+                || line.Contains("FREQ=MINUTELY", StringComparison.OrdinalIgnoreCase)
+                || line.Contains("FREQ=SECONDLY", StringComparison.OrdinalIgnoreCase)));
+
+    /// <summary>The event's own UID: a reminder (VALARM) nested inside it can carry another one.</summary>
     private static string? UidOf(string[] block)
+    {
+        int depth = 0;
+        foreach (string line in Unfolded(block))
+        {
+            if (line.StartsWith("BEGIN:", StringComparison.OrdinalIgnoreCase))
+            {
+                depth++;
+            }
+            else if (line.StartsWith("END:", StringComparison.OrdinalIgnoreCase))
+            {
+                depth--;
+            }
+            else if (depth == 1
+                && (line.StartsWith("UID:", StringComparison.OrdinalIgnoreCase) || line.StartsWith("UID;", StringComparison.OrdinalIgnoreCase)))
+            {
+                return line[(line.IndexOf(':', StringComparison.Ordinal) + 1)..].Trim();
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>The block's lines with continuation lines (starting with a space or a tab) joined back.</summary>
+    private static List<string> Unfolded(string[] block)
     {
         var unfolded = new List<string>();
         foreach (string line in block)
@@ -133,9 +191,7 @@ public static class IcalReader
             }
         }
 
-        string? uid = unfolded.FirstOrDefault(l =>
-            l.StartsWith("UID:", StringComparison.OrdinalIgnoreCase) || l.StartsWith("UID;", StringComparison.OrdinalIgnoreCase));
-        return uid?[(uid.IndexOf(':', StringComparison.Ordinal) + 1)..].Trim();
+        return unfolded;
     }
 }
 
@@ -143,6 +199,7 @@ public static class IcalReader
 public sealed class ParsedCalendar
 {
     // Stops a rule that never matches (30 February) after a bounded number of empty steps instead of searching for years.
+    // A contrived rule whose matches are very far apart (DAILY on 29 February) is skipped too; Google does not make those.
     private static readonly EvaluationOptions Bounded = new() { MaxUnmatchedIncrementsLimit = 1000 };
 
     private readonly IReadOnlyList<IcalCalendar> _series;

@@ -74,6 +74,67 @@ public sealed class IcalReaderRobustnessTests
         Assert.Equal(["🏃 Footing du jeudi"], Titles(Calendar(garbled, GoodEvent)));
     }
 
+    [Fact]
+    public void An_event_never_closed_does_not_hide_the_events_after_it()
+    {
+        const string unclosed = """
+            BEGIN:VEVENT
+            UID:unclosed@edgehub.test
+            SUMMARY:Jamais fermé
+            DTSTART;TZID=Europe/Paris:20261119T080000
+            """;
+
+        Assert.Equal(["🏃 Footing du jeudi"], Titles(Calendar(unclosed, GoodEvent)));
+    }
+
+    [Fact]
+    public void The_uid_of_a_reminder_inside_an_event_is_not_the_events_uid()
+    {
+        const string master = """
+            BEGIN:VEVENT
+            BEGIN:VALARM
+            UID:alarm@edgehub.test
+            ACTION:DISPLAY
+            TRIGGER:-PT10M
+            END:VALARM
+            UID:weekly@edgehub.test
+            SUMMARY:💪 Salle du jeudi
+            DTSTART;TZID=Europe/Paris:20261105T170000
+            DTEND;TZID=Europe/Paris:20261105T180000
+            RRULE:FREQ=WEEKLY;BYDAY=TH
+            END:VEVENT
+            """;
+        const string moved = """
+            BEGIN:VEVENT
+            UID:weekly@edgehub.test
+            RECURRENCE-ID;TZID=Europe/Paris:20261119T170000
+            SUMMARY:💪 Salle du jeudi
+            DTSTART;TZID=Europe/Paris:20261119T190000
+            DTEND;TZID=Europe/Paris:20261119T200000
+            END:VEVENT
+            """;
+
+        CalendarEvent session = Assert.Single(IcalReader.EventsOn(Calendar(master, moved), Thursday, Paris));
+        Assert.Equal(19, session.Start.Hour);
+    }
+
+    [Fact]
+    public void A_series_repeating_every_hour_or_faster_is_skipped()
+    {
+        const string hourly = """
+            BEGIN:VEVENT
+            UID:hourly@edgehub.test
+            SUMMARY:Rappel toutes les heures
+            DTSTART;TZID=Europe/Paris:20200101T090000
+            RRULE:FREQ=HOURLY;BYHOUR=9
+            END:VEVENT
+            """;
+        var watch = Stopwatch.StartNew();
+
+        Assert.Equal(["🏃 Footing du jeudi"], Titles(Calendar(hourly, GoodEvent)));
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(2), $"Took {watch.Elapsed}.");
+    }
+
     [Theory]
     [InlineData("<!DOCTYPE html><html><body>Connexion au Wi-Fi de l'hôtel</body></html>")]
     [InlineData("")]
