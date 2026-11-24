@@ -41,6 +41,19 @@ public sealed class MetricHistoryTests
     }
 
     [Fact]
+    public void Latest_follows_the_newest_value_once_the_buffer_wraps()
+    {
+        var history = new MetricHistory(capacity: 3);
+
+        foreach (double value in new[] { 1.0, 2, 3, 4, 5 })
+        {
+            history.Add(value);
+        }
+
+        Assert.Equal(5.0, history.Latest);
+    }
+
+    [Fact]
     public void Refuses_a_capacity_below_one()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => new MetricHistory(capacity: 0));

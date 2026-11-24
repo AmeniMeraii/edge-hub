@@ -27,7 +27,7 @@ public sealed class ActiveInterfaceTests
     public void Ignores_interfaces_that_are_down_loopback_or_tunnels()
     {
         var down = new InterfaceInfo("down", IsUp: false, IsLoopbackOrTunnel: false, HasIPv4Gateway: true, TotalBytes: 90_000);
-        var tunnel = new InterfaceInfo("vpn", IsUp: true, IsLoopbackOrTunnel: true, HasIPv4Gateway: true, TotalBytes: 90_000);
+        var tunnel = new InterfaceInfo("tunnel", IsUp: true, IsLoopbackOrTunnel: true, HasIPv4Gateway: true, TotalBytes: 90_000);
 
         Assert.Equal("wifi", ActiveInterface.Pick([down, tunnel, Wifi()])?.Id);
     }

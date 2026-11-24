@@ -19,6 +19,12 @@ public sealed class MediaSessionPickerTests
     }
 
     [Fact]
+    public void Ignores_the_case_of_the_app_id()
+    {
+        Assert.Equal("spotify.exe", MediaSessionPicker.Pick(["chrome", "spotify.exe"], currentAppId: "chrome"));
+    }
+
+    [Fact]
     public void Falls_back_to_the_current_session_without_spotify()
     {
         Assert.Equal("chrome", MediaSessionPicker.Pick(["vlc", "chrome"], currentAppId: "chrome"));
