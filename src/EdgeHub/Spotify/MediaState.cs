@@ -13,7 +13,10 @@ public sealed record MediaState(
 /// <summary>Reads and drives the media session shown on the screen (Spotify first).</summary>
 public interface IMediaController
 {
-    /// <summary>The current track, or null when no media app is open.</summary>
+    /// <summary>
+    /// The current track; null when no media app is open or the media controls fail. An implementation may return the
+    /// last known state for a short while when the media app is slow to answer.
+    /// </summary>
     Task<MediaState?> GetStateAsync(CancellationToken cancellationToken);
 
     /// <summary>Each command returns false when there is no session or the app refused it.</summary>

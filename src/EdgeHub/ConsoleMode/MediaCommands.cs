@@ -22,6 +22,6 @@ public static class MediaCommands
         }
 
         bool accepted = await chosen.Send(cancellationToken).ConfigureAwait(false);
-        return accepted ? $"{chosen.Label} envoyé" : $"{chosen.Label} refusé : aucune session média, ou l'appli a refusé";
+        return accepted ? $"{chosen.Label} envoyé" : $"{chosen.Label} refusé : aucune session média, ou l'appli a refusé ou n'a pas répondu";
     }
 }

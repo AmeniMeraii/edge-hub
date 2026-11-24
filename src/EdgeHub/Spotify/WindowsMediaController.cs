@@ -4,17 +4,20 @@ namespace EdgeHub.Spotify;
 
 /// <summary>
 /// Reads and drives the media session through Windows' media controls (GSMTC). Spotify's desktop app shows up there,
-/// so neither the Spotify Web API nor a Premium account is needed. Calls go to another process: each one has a time
-/// limit, and any failure means "no session" rather than an exception.
+/// so neither the Spotify Web API nor a Premium account is needed. Each asynchronous call has a time limit (the
+/// synchronous ones are quick calls to the Windows media broker), and any failure means "no session" rather than an
+/// exception.
 /// </summary>
 public sealed class WindowsMediaController : IMediaController
 {
     private static readonly TimeSpan ReadLimit = TimeSpan.FromMilliseconds(500);
     private static readonly TimeSpan CommandLimit = TimeSpan.FromSeconds(2);
+    private const int SlowReadsBeforeGivingUp = 3;
 
     private readonly GlobalSystemMediaTransportControlsSessionManager _manager;
     private readonly TimeProvider _time;
     private MediaState? _lastState;
+    private int _slowReads;
 
     private WindowsMediaController(GlobalSystemMediaTransportControlsSessionManager manager, TimeProvider time)
     {
@@ -41,6 +44,7 @@ public sealed class WindowsMediaController : IMediaController
             }
 
             var properties = await session.TryGetMediaPropertiesAsync().AsTask(limit.Token).ConfigureAwait(false);
+            _slowReads = 0;
             var playback = session.GetPlaybackInfo();
             var timeline = session.GetTimelineProperties();
 
@@ -60,8 +64,8 @@ public sealed class WindowsMediaController : IMediaController
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            // The media app is slow to answer: show what it said last time rather than nothing.
-            return _lastState;
+            // The media app is slow to answer: show what it said last time, but not forever.
+            return ++_slowReads < SlowReadsBeforeGivingUp ? _lastState : _lastState = null;
         }
         catch (Exception e) when (e is not OperationCanceledException)
         {
