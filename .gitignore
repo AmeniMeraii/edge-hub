@@ -492,3 +492,6 @@ appsettings.Local.json
 /CLAUDE.md
 CLAUDE.local.md
 .claude/settings.local.json
+
+# Claude Code handoff notes (local only).
+.claude/handoff/
