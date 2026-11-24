@@ -616,9 +616,10 @@ button.on { border-color: var(--accent); color: var(--accent); }
   function readStatus(readAt) {
     if (!readAt) return "Agenda lu par le PC";
     const read = new Date(readAt);
+    const when = read.toDateString() === new Date().toDateString() ? `à ${hhmm(read)}` : `le ${pad(read.getDate())}/${pad(read.getMonth() + 1)} à ${hhmm(read)}`;
     return Date.now() - read.getTime() > 30 * 60 * 1000
-      ? `Agenda · dernière lecture à ${hhmm(read)}, le PC n'arrive plus à le télécharger`
-      : `Agenda · lu à ${hhmm(read)}`;
+      ? `Agenda · dernière lecture ${when}, le PC n'arrive plus à le télécharger`
+      : `Agenda · lu ${when}`;
   }
   setCalStatus("Lecture de l'agenda…");
   function tickNext(now) {
