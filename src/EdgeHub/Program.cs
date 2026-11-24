@@ -48,8 +48,7 @@ builder.WebHost.ConfigureKestrel(kestrel =>
     }
 });
 
-builder.Services.AddOptions<ServerOptions>().BindConfiguration(ServerOptions.Section).ValidateDataAnnotations().ValidateOnStart();
-builder.Services.AddOptions<SecurityOptions>().BindConfiguration(SecurityOptions.Section).ValidateDataAnnotations().ValidateOnStart();
+builder.Services.AddEdgeHubOptions();
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<ISystemReadings, WindowsSystemReadings>();
