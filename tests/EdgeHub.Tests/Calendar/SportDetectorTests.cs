@@ -142,6 +142,19 @@ public sealed class SportDetectorTests
     }
 
     [Fact]
+    public void A_star_after_an_emoji_changes_nothing()
+    {
+        var detector = new SportDetector(new SportRules
+        {
+            Kinds = [new SportKind { Name = "Course", Keywords = ["🏃*"] }],
+            CancelledMarkers = ["❌"],
+            CancelledWords = ["annul"],
+        });
+
+        Assert.Equal("Course", detector.KindOf("🏃 Footing"));
+    }
+
+    [Fact]
     public void Keywords_come_from_the_settings()
     {
         var rules = new SportRules

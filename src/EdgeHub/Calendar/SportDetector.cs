@@ -102,7 +102,9 @@ public sealed class SportDetector
     {
         if (!keyword.Any(char.IsLetterOrDigit))
         {
-            return title => title.Contains(keyword, StringComparison.Ordinal);
+            // An emoji already matches anywhere: a trailing « * » adds nothing.
+            string literal = keyword.TrimEnd('*');
+            return title => title.Contains(literal, StringComparison.Ordinal);
         }
 
         bool wordStart = keyword.EndsWith('*');
