@@ -37,6 +37,8 @@ public static class ConsoleLoop
 
             while (true)
             {
+                // Checked on every pass, not only while waiting, so the loop always stops when asked.
+                cancellationToken.ThrowIfCancellationRequested();
                 show(ConsoleView.Render(snapshot, state, status));
 
                 ConsoleCommand command = await NextCommandAsync(keys, Refresh - time.GetElapsedTime(lastSample), time, cancellationToken)
