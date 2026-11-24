@@ -25,7 +25,7 @@ public sealed class AccessTokenEndpointTests(EdgeHubFactory factory) : IClassFix
     [InlineData("/Api/Stream/")]
     public async Task Api_routes_are_protected_whatever_their_case(string path)
     {
-        using var response = await Client().GetAsync(path, Ct);
+        using var response = await Client().GetAsync(path, HttpCompletionOption.ResponseHeadersRead, Ct);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
@@ -107,6 +107,37 @@ public sealed class AccessTokenEndpointTests(EdgeHubFactory factory) : IClassFix
         using var response = await Client().SendAsync(request, Ct);
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("http://localhost:3000")]
+    [InlineData("null")]
+    [InlineData(null)]
+    public async Task Without_fetch_metadata_only_the_screens_own_origin_can_change_anything(string? origin)
+    {
+        // Over plain http on the local network, browsers do not send Sec-Fetch-Site: the Origin header is the guard.
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/stream");
+        request.Headers.Add("Cookie", $"{Cookie}={EdgeHubFactory.Token}");
+        if (origin is not null)
+        {
+            request.Headers.Add("Origin", origin);
+        }
+
+        using var response = await Client().SendAsync(request, Ct);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Without_fetch_metadata_the_screens_own_origin_passes_the_site_check()
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/stream");
+        request.Headers.Add("Cookie", $"{Cookie}={EdgeHubFactory.Token}");
+        request.Headers.Add("Origin", "http://localhost");
+
+        using var response = await Client().SendAsync(request, Ct);
+
+        Assert.Equal(HttpStatusCode.MethodNotAllowed, response.StatusCode);
     }
 
     [Fact]
