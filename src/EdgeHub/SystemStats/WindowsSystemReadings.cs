@@ -62,7 +62,17 @@ public sealed partial class WindowsSystemReadings : ISystemReadings
     public IReadOnlyList<DiskUsage> ReadDisks()
     {
         var disks = new List<DiskUsage>();
-        foreach (DriveInfo drive in DriveInfo.GetDrives())
+        DriveInfo[] drives;
+        try
+        {
+            drives = DriveInfo.GetDrives();
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return disks;
+        }
+
+        foreach (DriveInfo drive in drives)
         {
             try
             {
