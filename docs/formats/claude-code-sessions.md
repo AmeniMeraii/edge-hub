@@ -48,7 +48,7 @@ Timestamps are ISO 8601 in UTC with milliseconds: `2026-11-23T20:43:33.756Z`.
 
 The file's last write time **does not** mean the session is active. Claude Code keeps appending lines without a timestamp (titles, mode, last prompt…) long after the last message. On 13 sessions, the gap between the file's last write time and its last `user` / `assistant` line ranged from 0 minutes to 9 days.
 
-Proposed rule, **to be validated**:
+Rule, validated (decision D10 in `docs/product/journal-des-decisions.md`):
 1. Take the top-level `.jsonl` files (not the subagent ones) written in the last 15 minutes. This is a cheap first filter.
 2. A session is active if its last `user` / `assistant` line is less than 15 minutes old. If several match, keep the most recent one.
 3. Activity in a subagent file counts as activity of its parent session (for the buddy's "reading" state).
