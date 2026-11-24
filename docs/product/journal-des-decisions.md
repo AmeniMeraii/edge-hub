@@ -91,28 +91,28 @@ Une entrée par choix important : le contexte, les options, la décision et ce q
 - **Contexte** : la tablette n'a pas de compte. Il faut empêcher un autre appareil du réseau de lire l'écran ou de piloter le PC.
 - **Options** : aucune protection ; le jeton dans chaque adresse ; le jeton donné une fois, puis gardé par le navigateur.
 - **Décision** : le jeton est donné à la première ouverture (`?k=`), puis gardé dans un cookie inaccessible aux scripts et limité au site, valable 400 jours et renouvelé à chaque appel. Les commandes envoyées depuis un autre site sont refusées.
-- **Conséquences** : l'adresse est nettoyée tout de suite, donc le jeton ne reste pas dans l'historique de la tablette. Pour les hooks de Claude Code (phase 4c), il restera à décider s'ils utilisent le même jeton et si le service n'en garde que l'empreinte.
+- **Conséquences** : l'adresse affichée est nettoyée tout de suite. L'adresse tapée avec le jeton peut quand même rester dans les suggestions du navigateur de la tablette. Pour les hooks de Claude Code (phase 4c), il restera à décider s'ils utilisent le même jeton et si le service n'en garde que l'empreinte.
 
 ## D16 · Agenda lu par le PC avec l'adresse iCal secrète · 24/11/2026
 - **Contexte** : le prototype lisait l'agenda par le connecteur Claude, qui ne fonctionne que dans l'appli Claude.
 - **Options** : le connecteur Claude ; l'API Google Agenda avec une connexion OAuth ; l'adresse secrète au format iCal.
-- **Décision** : l'adresse secrète iCal, téléchargée par le PC au plus toutes les 5 minutes.
+- **Décision** : l'adresse secrète iCal, téléchargée par le PC toutes les 5 minutes, ou chaque minute après un échec.
 - **Conséquences** : aucun compte Google à connecter, et l'écran fonctionne sans Claude. Cette adresse donne accès à tout l'agenda : elle reste dans les user-secrets ou le fichier local, n'est jamais écrite dans les journaux, et devra être réinitialisée dans Google Agenda si elle fuit. Si le téléchargement échoue, l'écran garde la dernière copie lisible pendant un jour au plus et affiche son heure de lecture.
 
 ## D17 · Une branche par phase, relue par deux agents · 24/11/2026
 - **Contexte** : il fallait fixer comment le code arrive dans `main`.
 - **Options** : une branche par fonctionnalité ; une branche par phase.
-- **Décision** : une branche par phase, créée depuis `main`. Une PR, relue par deux agents qui challengent le code, puis les corrections, puis une fusion par commit de fusion. Les branches de phase sont gardées.
+- **Décision** : une branche par phase, créée depuis `main`. Une PR, relue par deux agents qui challengent le code, puis les corrections, puis une fusion par commit de fusion. Les branches de phase sont gardées. Une petite suite entre deux phases a sa propre branche, avec le même circuit (par exemple `logs-and-fonts`).
 - **Conséquences** : chaque phase arrive d'un bloc, avec ses relectures et leurs corrections visibles dans la PR. Le découpage par fonctionnalité était trop fin : on aurait dit des tâches, pas des user stories.
 
 ## D18 · Journaux du service dans un fichier, avec Serilog · 24/11/2026
 - **Contexte** : le plan prévoit des journaux dans un fichier tournant sous `%LOCALAPPDATA%\EdgeHub\logs`, pour comprendre un problème après coup. Le logging intégré de .NET n'écrit pas dans un fichier.
 - **Options** : écrire un petit fournisseur maison ; Serilog, une bibliothèque répandue et maintenue.
-- **Décision** : Serilog, avec un fichier par jour et les plus anciens supprimés.
-- **Conséquences** : une dépendance de plus, mais connue. Les règles actuelles s'appliquent aussi au fichier : ni l'adresse iCal, ni le jeton, ni l'adresse des appareils qui se connectent.
+- **Décision** : Serilog, avec un fichier par jour, gardé 14 jours, et 1 Go au plus en tout.
+- **Conséquences** : une dépendance de plus, mais connue. Les règles actuelles s'appliquent aussi au fichier : ni l'adresse iCal, ni le jeton, ni l'adresse des appareils qui se connectent. Le fichier applique lui-même le filtre des adresses, quels que soient les réglages.
 
 ## D19 · Polices servies par le PC · 24/11/2026
 - **Contexte** : l'écran charge ses polices, Chakra Petch et IBM Plex Sans, depuis Google Fonts.
 - **Options** : garder Google Fonts ; servir les fichiers depuis le PC.
 - **Décision** : les servir depuis le PC.
-- **Conséquences** : l'écran s'affiche pareil sans internet, et la tablette ne contacte plus Google à chaque ouverture. Les deux polices sont sous licence libre (SIL Open Font License) : leurs fichiers peuvent aller dans le dépôt, avec la licence.
+- **Conséquences** : l'écran s'affiche pareil sans internet, et la tablette ne contacte plus Google à chaque ouverture. Les deux polices sont sous licence libre (SIL Open Font License) : leurs fichiers peuvent aller dans le dépôt, avec la licence. IBM réserve le nom « Plex » : seuls ses fichiers d'origine, non modifiés, gardent ce nom, donc ceux d'IBM Plex Sans viennent d'IBM et pas de Google Fonts.
