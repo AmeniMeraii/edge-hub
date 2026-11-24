@@ -45,6 +45,7 @@ public sealed class CalendarTodayTests
 
         Assert.True(today.Available);
         Assert.Equal(Thursday, today.Day);
+        Assert.Equal(source.LastReadAt, today.ReadAt);
         Assert.Equal(2, today.Events.Count);
         Assert.Equal("Course", today.Sport?.Kind);
         Assert.Equal(new DateTimeOffset(2026, 11, 19, 12, 15, 0, Paris), today.Sport?.Start);
@@ -80,6 +81,8 @@ public sealed class CalendarTodayTests
         public bool Unavailable { get; init; }
 
         public IReadOnlyList<CalendarEvent> Events { get; init; } = [];
+
+        public DateTimeOffset? LastReadAt { get; init; } = new DateTimeOffset(2026, 11, 19, 8, 55, 0, TimeSpan.FromHours(1));
 
         public DateOnly? RequestedDay { get; private set; }
 

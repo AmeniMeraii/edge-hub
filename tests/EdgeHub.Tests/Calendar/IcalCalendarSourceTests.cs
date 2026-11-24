@@ -91,6 +91,44 @@ public sealed class IcalCalendarSourceTests : IDisposable
     }
 
     [Fact]
+    public async Task A_refused_download_is_logged_once()
+    {
+        _web.Fail = true;
+
+        await Assert.ThrowsAsync<CalendarUnavailableException>(() => Source().GetEventsAsync(Thursday, Ct));
+
+        Assert.Single(_log.Messages);
+    }
+
+    [Fact]
+    public async Task Stops_serving_a_kept_calendar_older_than_a_day()
+    {
+        IcalCalendarSource source = Source();
+        await source.GetEventsAsync(Thursday, Ct);
+
+        _web.Fail = true;
+        _clock.Advance(TimeSpan.FromHours(23));
+        await source.GetEventsAsync(Thursday, Ct);
+        _clock.Advance(TimeSpan.FromHours(2));
+
+        await Assert.ThrowsAsync<CalendarUnavailableException>(() => source.GetEventsAsync(Thursday, Ct));
+    }
+
+    [Fact]
+    public async Task Says_when_the_calendar_was_last_read()
+    {
+        IcalCalendarSource source = Source();
+        Assert.Null(source.LastReadAt);
+
+        await source.GetEventsAsync(Thursday, Ct);
+        _web.Fail = true;
+        _clock.Advance(TimeSpan.FromMinutes(10));
+        await source.GetEventsAsync(Thursday, Ct);
+
+        Assert.Equal(new DateTimeOffset(2026, 11, 5, 8, 0, 0, TimeSpan.Zero), source.LastReadAt);
+    }
+
+    [Fact]
     public async Task Any_failure_while_downloading_counts_as_unreachable()
     {
         _web.Throw = new InvalidOperationException("The character set provided in ContentType is invalid.");

@@ -7,6 +7,9 @@ public interface ICalendarSource
 {
     bool IsConfigured { get; }
 
+    /// <summary>When the calendar being served was downloaded, or null before the first readable download.</summary>
+    DateTimeOffset? LastReadAt { get; }
+
     /// <summary>
     /// The day's events, ordered by start. Throws <see cref="CalendarUnavailableException"/> when no readable copy of the
     /// calendar has ever been downloaded from the configured link.
@@ -35,7 +38,8 @@ public sealed class CalendarUnavailableException : Exception
 /// <summary>
 /// Downloads the iCal calendar at most once every 5 minutes and keeps the last readable copy: a failed download, or one
 /// that is not a calendar (an HTML page from a proxy), never replaces it, and after a failure the next attempt waits a
-/// minute. The calendar is parsed once per download, and each day is computed once per download.
+/// minute. A kept copy is served for a day at most. The calendar is parsed once per download, and each day is computed
+/// once per download.
 /// The link is a secret: it is never logged (only the kind of failure is), and the HTTP client used for it logs nothing.
 /// </summary>
 public sealed partial class IcalCalendarSource(
@@ -47,16 +51,20 @@ public sealed partial class IcalCalendarSource(
     public const string ClientName = "calendar";
     private static readonly TimeSpan CacheFor = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan RetryAfterFailure = TimeSpan.FromMinutes(1);
+    private static readonly TimeSpan KeepAtMost = TimeSpan.FromDays(1);
 
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly Dictionary<(DateOnly Day, string Zone), IReadOnlyList<CalendarEvent>> _days = [];
     private ParsedCalendar? _calendar;
     private string? _readFrom;
     private long _readAt;
+    private DateTimeOffset? _readAtTime;
     private string? _failedFor;
     private long _failedAt;
 
     public bool IsConfigured => options.CurrentValue.IsConfigured;
+
+    public DateTimeOffset? LastReadAt => _readFrom == options.CurrentValue.IcalUrl ? _readAtTime : null;
 
     public async Task<IReadOnlyList<CalendarEvent>> GetEventsAsync(DateOnly day, CancellationToken cancellationToken)
     {
@@ -122,7 +130,7 @@ public sealed partial class IcalCalendarSource(
                 LogSkippedSeries(logger, parsed.UnreadableSeries);
             }
 
-            (_calendar, _readFrom, _readAt, _failedFor) = (parsed, link, time.GetTimestamp(), null);
+            (_calendar, _readFrom, _readAt, _readAtTime, _failedFor) = (parsed, link, time.GetTimestamp(), time.GetUtcNow(), null);
             _days.Clear();
             return parsed;
         }
@@ -131,7 +139,7 @@ public sealed partial class IcalCalendarSource(
             LogNotACalendar(logger);
             return Failed(link);
         }
-        catch (Exception e) when (!cancellationToken.IsCancellationRequested)
+        catch (Exception e) when (e is not CalendarUnavailableException && !cancellationToken.IsCancellationRequested)
         {
             // Only the kind of failure is logged: exception messages can carry parts of the address.
             LogUnreachable(logger, e.GetType().Name);
@@ -146,7 +154,9 @@ public sealed partial class IcalCalendarSource(
     }
 
     private ParsedCalendar KeptOrUnavailable(string link) =>
-        _calendar is not null && _readFrom == link ? _calendar : throw new CalendarUnavailableException();
+        _calendar is not null && _readFrom == link && time.GetElapsedTime(_readAt) < KeepAtMost
+            ? _calendar
+            : throw new CalendarUnavailableException();
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Téléchargement de l'agenda refusé (statut HTTP {StatusCode}) : dernière version gardée s'il y en a une")]
     private static partial void LogDownloadFailed(ILogger logger, int statusCode);

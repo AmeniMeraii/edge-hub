@@ -3,21 +3,22 @@ using Microsoft.Extensions.Options;
 namespace EdgeHub.Calendar;
 
 /// <summary>
-/// What <c>/api/calendar/today</c> answers: the day it describes (in the calendar's time zone), its events and the sport
-/// session the screen shows. The screen drops data whose day is not its own day, so a PC asleep at night never leaves
+/// What <c>/api/calendar/today</c> answers: the day it describes (in the calendar's time zone), when the calendar was
+/// downloaded, its events and the sport session the screen shows. The screen drops data whose day is not its own day, so a PC asleep at night never leaves
 /// yesterday's session on the screen.
 /// </summary>
 public sealed record CalendarTodayMessage(
     bool Configured,
     bool Available,
     DateOnly? Day,
+    DateTimeOffset? ReadAt,
     IReadOnlyList<CalendarEventMessage> Events,
     SportMessage? Sport,
     string? CancelledTitle)
 {
-    public static CalendarTodayMessage NotConfigured { get; } = new(false, false, null, [], null, null);
+    public static CalendarTodayMessage NotConfigured { get; } = new(false, false, null, null, [], null, null);
 
-    public static CalendarTodayMessage UnavailableOn(DateOnly day) => new(true, false, day, [], null, null);
+    public static CalendarTodayMessage UnavailableOn(DateOnly day) => new(true, false, day, null, [], null, null);
 }
 
 public sealed record CalendarEventMessage(string Title, DateTimeOffset Start, DateTimeOffset End, bool AllDay);
@@ -53,6 +54,7 @@ public sealed class CalendarToday(ICalendarSource source, IOptionsMonitor<Calend
             Configured: true,
             Available: true,
             today,
+            source.LastReadAt,
             events.Select(e => new CalendarEventMessage(e.Title, e.Start, e.End, e.IsAllDay)).ToList(),
             sport.Session is { } session ? new SportMessage(session.Kind, session.Start, session.Title) : null,
             sport.CancelledTitle);
