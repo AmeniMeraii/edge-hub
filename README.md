@@ -13,6 +13,16 @@ dotnet build
 dotnet test
 ```
 
+## Console mode
+
+Shows CPU, memory, network and disk usage and the current track, refreshed every second:
+
+```powershell
+dotnet run --project src/EdgeHub -- --console
+```
+
+Keys: `Space` play/pause, `N` next, `P` previous, `Q` quit. The track comes from Windows' media controls, so Spotify's desktop app works without its Web API or a Premium account.
+
 ## License
 
 [MIT](LICENSE)

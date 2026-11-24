@@ -7,6 +7,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 ## [Unreleased]
 
 ### Added
+- Console mode (`EdgeHub.exe --console`): CPU, memory, network and disk usage, current track from Windows' media controls, play/pause, next and previous from the keyboard.
 - Solution skeleton: ASP.NET Core service (`src/EdgeHub`) with a `/health` route, xUnit test project.
 - Shared build settings: nullable reference types, .NET analyzers, warnings treated as errors.
 - Continuous integration on Windows (restore, build, test) for every pull request and every push to main.
