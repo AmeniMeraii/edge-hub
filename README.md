@@ -40,7 +40,7 @@ The sport line and the « Ensuite » line under the clock come from your calenda
 dotnet user-secrets set Calendar:IcalUrl "<secret iCal address>" --project src/EdgeHub
 ```
 
-The PC downloads it at most every 5 minutes and never writes the address in its logs. Recurring events are unfolded with their moved, excluded or cancelled occurrences, in the `Calendar:TimeZone` time zone (Europe/Paris by default). A session is recognised from its title: 🏃, « course », « footing » or « run » for a run, 💪, « muscu », « full body » or « salle » for strength, 🚶 or « marche » for a walk; a title that starts with ❌ or contains « annul » is a cancelled session. The keywords can be changed in `Calendar:Sport` (see `appsettings.example.json`). Without an address, the screen keeps the manual choice.
+The PC downloads it at most every 5 minutes and never writes the address in its logs. Recurring events are unfolded with their moved, excluded or cancelled occurrences, in the `Calendar:TimeZone` time zone (Europe/Paris by default). A session is recognised from its title: 🏃, « course », « footing » or « run » for a run, 💪, « muscu », « full body » or « salle » for strength, 🚶 or « marche » for a walk; a title that starts with ❌ or contains « annul » is a cancelled session. Keywords match at the start of a word, whatever the case (« footing » matches « Footings », « run » does not match « Prune »); emojis match anywhere. The keywords can be changed in `Calendar:Sport` (see `appsettings.example.json`). One broken event in the calendar is skipped without hiding the others. Without an address, the screen keeps the manual choice.
 
 ## Console mode
 

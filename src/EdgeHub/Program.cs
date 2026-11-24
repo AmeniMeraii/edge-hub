@@ -27,11 +27,11 @@ var builder = WebApplication.CreateBuilder(new WebApplicationOptions
     ContentRootPath = PublishedContentRoot(),
 });
 
-// Personal values (token, later the calendar link) live outside git: user secrets in development, or
+// Personal values (the token, the calendar's secret link) live outside git: user secrets in development, or
 // appsettings.Local.json, which environment variables and the command line can still override.
 builder.Configuration.AddLocalSettings();
 
-// Request logs would print each address, and the first one carries ?k=<token>.
+// Logs of requests and of outgoing calls would print addresses: ?k=<token>, the calendar's secret link.
 builder.Logging.KeepRequestAddressesOutOfLogs();
 
 ServerOptions server = builder.Configuration.GetSection(ServerOptions.Section).Get<ServerOptions>() ?? new ServerOptions();
