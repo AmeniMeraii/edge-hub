@@ -12,6 +12,7 @@ public sealed class StartupValidationTests
     [Theory]
     [InlineData("")]
     [InlineData("too-short-token")]
+    [InlineData("a+token+that+breaks+in+an+address+0123456789")]
     public void The_service_refuses_to_start_without_a_long_enough_token(string token)
     {
         using var factory = new FactoryWithToken(token);

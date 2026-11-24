@@ -9,5 +9,8 @@ public sealed class SecurityOptions
 
     [Required(ErrorMessage = "Security:Token est manquant : ajoutez-le avec dotnet user-secrets ou dans appsettings.Local.json.")]
     [MinLength(32, ErrorMessage = "Security:Token doit faire au moins 32 caractères.")]
+    [RegularExpression(
+        "^[A-Za-z0-9_-]*$",
+        ErrorMessage = "Security:Token ne doit contenir que des lettres, des chiffres, - et _ : il passe tel quel dans une adresse.")]
     public string Token { get; set; } = "";
 }
