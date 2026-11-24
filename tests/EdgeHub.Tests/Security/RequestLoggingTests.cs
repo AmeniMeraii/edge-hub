@@ -31,6 +31,57 @@ public sealed class RequestLoggingTests
         Assert.Equal(["Other information"], capture.Messages);
     }
 
+    [Theory]
+    // A wildcard makes a rule longer than the exact category, so it would win.
+    [InlineData("Logging:Capture:LogLevel:Microsoft.AspNetCore.Hosting.Diagnostics*", "Microsoft.AspNetCore.Hosting.Diagnostics")]
+    [InlineData("Logging:Capture:LogLevel:*Microsoft.AspNetCore.Hosting.Diagnostics", "Microsoft.AspNetCore.Hosting.Diagnostics")]
+    [InlineData("Logging:LogLevel:Microsoft.AspNetCore.Hosting.Diag*nostics", "Microsoft.AspNetCore.Hosting.Diagnostics")]
+    // A longer category under a quiet one.
+    [InlineData("Logging:Capture:LogLevel:System.Net.Http.HttpClient.calendar", "System.Net.Http.HttpClient.calendar.LogicalHandler")]
+    // A malformed request line is logged with its address.
+    [InlineData("Logging:Capture:LogLevel:Default", "Microsoft.AspNetCore.Server.Kestrel.BadRequests")]
+    public void No_setting_lets_an_address_through(string setting, string category)
+    {
+        var capture = new CaptureLoggerProvider();
+        using ServiceProvider services = Services(capture, new() { [setting] = "Trace" });
+        ILogger logger = services.GetRequiredService<ILoggerFactory>().CreateLogger(category);
+
+        Information(logger, "GET /?k=secret");
+        logger.Log(LogLevel.Debug, default, "GET /?k=secret", null, (state, _) => state);
+
+        Assert.Empty(capture.Messages);
+    }
+
+    [Theory]
+    [InlineData("EdgeHub.*", "EdgeHub.Calendar.IcalCalendarSource")]
+    // Longer than the quiet categories, but they cannot apply to them.
+    [InlineData("*EdgeHub.Calendar.IcalCalendarSource", "EdgeHub.Calendar.IcalCalendarSource")]
+    [InlineData("Microsoft.AspNetCore.*Routing.EndpointMiddleware", "Microsoft.AspNetCore.Routing.EndpointMiddleware")]
+    [InlineData("Microsoft.AspNetCore.Server.Kestrel.*Connections", "Microsoft.AspNetCore.Server.Kestrel.Connections")]
+    public void A_wildcard_rule_elsewhere_keeps_its_level(string pattern, string category)
+    {
+        var capture = new CaptureLoggerProvider();
+        using ServiceProvider services = Services(capture, new() { ["Logging:Capture:LogLevel:" + pattern] = "Debug" });
+
+        services.GetRequiredService<ILoggerFactory>().CreateLogger(category)
+            .Log(LogLevel.Debug, default, "Debug line", null, (state, _) => state);
+
+        Assert.Equal(["Debug line"], capture.Messages);
+    }
+
+    private static ServiceProvider Services(CaptureLoggerProvider capture, Dictionary<string, string?> values)
+    {
+        IConfiguration settings = new ConfigurationBuilder().AddInMemoryCollection(values).Build();
+        return new ServiceCollection()
+            .AddLogging(logging =>
+            {
+                logging.AddConfiguration(settings.GetSection("Logging"));
+                logging.AddProvider(capture);
+                logging.KeepRequestAddressesOutOfLogs();
+            })
+            .BuildServiceProvider();
+    }
+
     private static void Information(ILogger logger, string message) =>
         logger.Log(LogLevel.Information, default, message, null, (state, _) => state);
 

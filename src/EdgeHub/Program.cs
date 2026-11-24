@@ -1,6 +1,7 @@
 using EdgeHub.Calendar;
 using EdgeHub.Configuration;
 using EdgeHub.ConsoleMode;
+using EdgeHub.LogFiles;
 using EdgeHub.Security;
 using EdgeHub.Spotify;
 using EdgeHub.Streaming;
@@ -31,7 +32,9 @@ var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 // appsettings.Local.json, which environment variables and the command line can still override.
 builder.Configuration.AddLocalSettings();
 
-// Logs of requests and of outgoing calls would print addresses: ?k=<token>, the calendar's secret link.
+// Logs of requests and of outgoing calls would print addresses: ?k=<token>, the calendar's secret link. The rule
+// covers the console and the log file alike.
+builder.Logging.AddLogFile();
 builder.Logging.KeepRequestAddressesOutOfLogs();
 
 ServerOptions server = builder.Configuration.GetSection(ServerOptions.Section).Get<ServerOptions>() ?? new ServerOptions();

@@ -24,6 +24,9 @@ public class EdgeHubFactory : WebApplicationFactory<Program>
 
     protected virtual string? ConfiguredToken => Token;
 
+    /// <summary>Settings a test adds or replaces.</summary>
+    protected virtual IReadOnlyDictionary<string, string?> ExtraSettings => new Dictionary<string, string?>();
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         // Not "Development": the developer's user secrets are not loaded. Their appsettings.Local.json is removed too.
@@ -37,10 +40,18 @@ public class EdgeHubFactory : WebApplicationFactory<Program>
                 config.Sources.Remove(local);
             }
 
-            config.AddInMemoryCollection(new Dictionary<string, string?>
+            var settings = new Dictionary<string, string?>
             {
                 ["Security:Token"] = ConfiguredToken,
-            });
+                // No log file: tests never write into the developer's own logs.
+                ["Logs:Folder"] = "",
+            };
+            foreach ((string key, string? value) in ExtraSettings)
+            {
+                settings[key] = value;
+            }
+
+            config.AddInMemoryCollection(settings);
         });
         builder.ConfigureTestServices(services =>
         {
