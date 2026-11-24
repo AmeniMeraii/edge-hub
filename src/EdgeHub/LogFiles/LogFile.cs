@@ -3,7 +3,6 @@ using EdgeHub.Security;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Serilog;
-using Serilog.Debugging;
 using Serilog.Events;
 using Serilog.Extensions.Logging;
 
@@ -42,7 +41,9 @@ public static class LogFile
     /// <summary>
     /// One file per day (<c>edgehub-20261124.log</c>), a new one past 10 MB, deleted after
     /// <see cref="LogFileOptions.RetainedDays"/>, <see cref="MaxFiles"/> files at most. No provider at all when the log
-    /// file is off. Request and outgoing call logs below Warning never reach the file, whatever the Logging settings.
+    /// file is off, or when its folder cannot be written to: the console's error output says so once, rather than
+    /// Serilog failing on every line until the next day. Request and outgoing call logs below Warning never reach the
+    /// file, whatever the Logging settings.
     /// </summary>
     public static ILoggerProvider CreateProvider(LogFileOptions options)
     {
@@ -53,9 +54,11 @@ public static class LogFile
             return NullLoggerProvider.Instance;
         }
 
-        // Serilog reports its own failures on the console's error output: an unwritable folder means no file until the
-        // next day.
-        SelfLog.Enable(Console.Error);
+        if (!CanWriteTo(folder))
+        {
+            Console.Error.WriteLine($"Logs:Folder « {folder} » n'est pas accessible en écriture : pas de fichier de journal pour cette fois.");
+            return NullLoggerProvider.Instance;
+        }
 
         // Every level reaches Serilog, since the Logging settings have already chosen what to write, except for the
         // categories that print addresses: the file applies that rule itself, out of reach of the settings.
@@ -77,5 +80,19 @@ public static class LogFile
                 retainedFileTimeLimit: TimeSpan.FromDays(options.RetainedDays))
             .CreateLogger();
         return new SerilogLoggerProvider(logger, dispose: true);
+    }
+
+    private static bool CanWriteTo(string folder)
+    {
+        try
+        {
+            Directory.CreateDirectory(folder);
+            using var probe = new FileStream(Path.Combine(folder, $".edgehub-{Guid.NewGuid():N}.tmp"), FileMode.CreateNew, FileAccess.Write, FileShare.None, 1, FileOptions.DeleteOnClose);
+            return true;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
     }
 }

@@ -34,6 +34,6 @@ public sealed partial class LogFileOptions : IValidatableObject
         }
     }
 
-    [GeneratedRegex(@"%[^%\/]+%")]
+    [GeneratedRegex(@"%[^%\\/]+%")]
     private static partial Regex UnknownVariable();
 }

@@ -3,6 +3,7 @@ using EdgeHub.LogFiles;
 using EdgeHub.Tests.TestSupport;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace EdgeHub.Tests.LogFiles;
 
@@ -57,6 +58,21 @@ public sealed class LogFileTests
         finally
         {
             folder.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public void A_folder_that_cannot_be_written_to_means_no_log_file_rather_than_errors_on_every_line()
+    {
+        string notAFolder = Path.GetTempFileName();
+        try
+        {
+            // A folder cannot be created under a file.
+            Assert.Same(NullLoggerProvider.Instance, LogFile.CreateProvider(new LogFileOptions { Folder = Path.Combine(notAFolder, "logs") }));
+        }
+        finally
+        {
+            File.Delete(notAFolder);
         }
     }
 

@@ -89,6 +89,14 @@ public sealed class LogFileOptionsTests
     }
 
     [Fact]
+    public void A_folder_may_hold_percent_signs_that_name_no_variable()
+    {
+        string folder = Path.Combine(Path.GetTempPath(), "a%", "b%");
+
+        Assert.Equal(folder, Bind(new() { ["Logs:Folder"] = folder }).ResolvedFolder());
+    }
+
+    [Fact]
     public void A_folder_may_name_an_environment_variable()
     {
         var options = new LogFileOptions { Folder = Path.Combine("%LOCALAPPDATA%", "EdgeHub", "logs") };
