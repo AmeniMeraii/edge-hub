@@ -1,10 +1,9 @@
 using System.Net;
-using Microsoft.AspNetCore.Mvc.Testing;
+using EdgeHub.Tests.TestSupport;
 
 namespace EdgeHub.Tests;
 
-public sealed class HealthEndpointTests(WebApplicationFactory<Program> factory)
-    : IClassFixture<WebApplicationFactory<Program>>
+public sealed class HealthEndpointTests(EdgeHubFactory factory) : IClassFixture<EdgeHubFactory>
 {
     [Fact]
     public async Task Health_returns_200()
