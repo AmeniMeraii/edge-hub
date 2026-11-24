@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using System.Threading.Channels;
 using EdgeHub.Spotify;
@@ -6,136 +7,93 @@ using EdgeHub.SystemStats;
 namespace EdgeHub.ConsoleMode;
 
 /// <summary>
-/// <c>EdgeHub.exe --console</c>: shows the PC stats and the current track every second, and drives the media session
-/// from the keyboard. Keys can also be piped in as characters, so a script can test the commands; piped input does not
-/// end the console, so a script must send <c>q</c>.
+/// <c>EdgeHub.exe --console</c>: wires <see cref="ConsoleLoop"/> to the real console. Keys come from the keyboard, or
+/// as characters when the input is piped (a script must then send <c>q</c> to quit); frames are redrawn in place, or
+/// printed one after another when the output is redirected.
 /// </summary>
 public static class ConsoleProbe
 {
-    private static readonly TimeSpan Refresh = TimeSpan.FromSeconds(1);
-
     /// <summary>Runs the console on this PC's real stats and media session.</summary>
     public static async Task<int> RunOnWindowsAsync(CancellationToken cancellationToken)
     {
         var stats = new SystemStatsSampler(new WindowsSystemReadings(), TimeProvider.System);
         IMediaController media;
+        string? status = null;
         try
         {
             media = await WindowsMediaController.CreateAsync(TimeProvider.System, cancellationToken).ConfigureAwait(false);
-        }
-        catch (Exception e) when (e is not OperationCanceledException)
-        {
-            media = new NoMediaController();
-        }
-
-        return await RunAsync(stats, media, TimeProvider.System, cancellationToken).ConfigureAwait(false);
-    }
-
-    public static async Task<int> RunAsync(ISystemStats stats, IMediaController media, TimeProvider time, CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(stats);
-        ArgumentNullException.ThrowIfNull(media);
-        ArgumentNullException.ThrowIfNull(time);
-
-        Encoding previousEncoding = Console.OutputEncoding;
-        Console.OutputEncoding = Encoding.UTF8;
-        ChannelReader<ConsoleCommand>? pipedKeys = Console.IsInputRedirected ? ReadPipedKeys(cancellationToken) : null;
-        using var screen = new Screen(redraw: !Console.IsOutputRedirected);
-        string? status = null;
-
-        try
-        {
-            // Stats are sampled on a fixed one-second schedule; a key press only redraws, so it never adds a sample.
-            SystemSnapshot snapshot = stats.Sample();
-            MediaState? state = await media.GetStateAsync(cancellationToken).ConfigureAwait(false);
-            DateTimeOffset nextSample = time.GetUtcNow() + Refresh;
-
-            while (true)
-            {
-                screen.Show(ConsoleView.Render(snapshot, state, status));
-
-                ConsoleCommand command = pipedKeys is null
-                    ? await WaitForKeyAsync(time, nextSample, cancellationToken).ConfigureAwait(false)
-                    : await WaitForPipedKeyAsync(pipedKeys, time, nextSample, cancellationToken).ConfigureAwait(false);
-
-                if (command == ConsoleCommand.Quit)
-                {
-                    return 0;
-                }
-
-                if (command != ConsoleCommand.None)
-                {
-                    status = await MediaCommands.SendAsync(command, media, cancellationToken).ConfigureAwait(false) ?? status;
-                    state = await media.GetStateAsync(cancellationToken).ConfigureAwait(false);
-                    continue;
-                }
-
-                snapshot = stats.Sample();
-                state = await media.GetStateAsync(cancellationToken).ConfigureAwait(false);
-                DateTimeOffset now = time.GetUtcNow();
-                nextSample = nextSample + Refresh > now ? nextSample + Refresh : now + Refresh;
-            }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             return 0;
         }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            media = new NoMediaController();
+            status = "Contrôles média de Windows indisponibles : le morceau en cours ne peut pas être lu";
+        }
+
+        return await RunAsync(stats, media, TimeProvider.System, status, cancellationToken).ConfigureAwait(false);
+    }
+
+    public static async Task<int> RunAsync(
+        ISystemStats stats, IMediaController media, TimeProvider time, string? initialStatus, CancellationToken cancellationToken)
+    {
+        Encoding previousEncoding = Console.OutputEncoding;
+        Console.OutputEncoding = Encoding.UTF8;
+        using var stopKeys = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        ChannelReader<ConsoleCommand> keys = Console.IsInputRedirected ? ReadPipedKeys(stopKeys.Token) : ReadKeyboard(stopKeys.Token);
+        using var screen = new Screen(redraw: !Console.IsOutputRedirected);
+        try
+        {
+            return await ConsoleLoop.RunAsync(stats, media, time, keys, screen.Show, initialStatus, cancellationToken).ConfigureAwait(false);
+        }
         finally
         {
+            await stopKeys.CancelAsync().ConfigureAwait(false);
             Console.OutputEncoding = previousEncoding;
         }
     }
 
-    /// <summary>Waits for a command key until <paramref name="until"/>, then returns <see cref="ConsoleCommand.None"/>.</summary>
-    private static async Task<ConsoleCommand> WaitForKeyAsync(TimeProvider time, DateTimeOffset until, CancellationToken cancellationToken)
-    {
-        while (time.GetUtcNow() < until)
-        {
-            if (Console.KeyAvailable)
+    private static ChannelReader<ConsoleCommand> ReadKeyboard(CancellationToken cancellationToken) =>
+        ReadInBackground(
+            async writer =>
             {
-                ConsoleCommand command = ConsoleCommands.FromKey(Console.ReadKey(intercept: true).Key);
-                if (command != ConsoleCommand.None)
+                while (true)
                 {
-                    return command;
+                    while (Console.KeyAvailable)
+                    {
+                        ConsoleCommand command = ConsoleCommands.FromKey(Console.ReadKey(intercept: true).Key);
+                        if (command != ConsoleCommand.None)
+                        {
+                            writer.TryWrite(command);
+                        }
+                    }
+
+                    await Task.Delay(TimeSpan.FromMilliseconds(50), cancellationToken).ConfigureAwait(false);
                 }
-            }
+            },
+            cancellationToken);
 
-            await Task.Delay(TimeSpan.FromMilliseconds(50), time, cancellationToken).ConfigureAwait(false);
-        }
-
-        return ConsoleCommand.None;
-    }
-
-    private static async Task<ConsoleCommand> WaitForPipedKeyAsync(
-        ChannelReader<ConsoleCommand> keys, TimeProvider time, DateTimeOffset until, CancellationToken cancellationToken)
-    {
-        TimeSpan remaining = until - time.GetUtcNow();
-        if (remaining <= TimeSpan.Zero)
-        {
-            return ConsoleCommand.None;
-        }
-
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(remaining);
-        try
-        {
-            if (await keys.WaitToReadAsync(timeout.Token).ConfigureAwait(false) && keys.TryRead(out ConsoleCommand command))
+    private static ChannelReader<ConsoleCommand> ReadPipedKeys(CancellationToken cancellationToken) =>
+        ReadInBackground(
+            async writer =>
             {
-                return command;
-            }
+                var buffer = new char[1];
+                while (await Console.In.ReadAsync(buffer, cancellationToken).ConfigureAwait(false) > 0)
+                {
+                    ConsoleCommand command = ConsoleCommands.FromChar(buffer[0]);
+                    if (command != ConsoleCommand.None)
+                    {
+                        writer.TryWrite(command);
+                    }
+                }
+            },
+            cancellationToken);
 
-            // The input has ended: keep refreshing until Ctrl+C.
-            await Task.Delay(remaining, time, cancellationToken).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            // No key before the next sample.
-        }
-
-        return ConsoleCommand.None;
-    }
-
-    private static ChannelReader<ConsoleCommand> ReadPipedKeys(CancellationToken cancellationToken)
+    /// <summary>Runs a key reader on the thread pool; the channel completes when it ends, fails or is cancelled.</summary>
+    private static ChannelReader<ConsoleCommand> ReadInBackground(
+        Func<ChannelWriter<ConsoleCommand>, Task> read, CancellationToken cancellationToken)
     {
         var channel = Channel.CreateUnbounded<ConsoleCommand>();
         _ = Task.Run(
@@ -144,23 +102,19 @@ public static class ConsoleProbe
                 Exception? failure = null;
                 try
                 {
-                    var buffer = new char[1];
-                    while (await Console.In.ReadAsync(buffer, cancellationToken).ConfigureAwait(false) > 0)
-                    {
-                        ConsoleCommand command = ConsoleCommands.FromChar(buffer[0]);
-                        if (command != ConsoleCommand.None)
-                        {
-                            channel.Writer.TryWrite(command);
-                        }
-                    }
+                    await read(channel.Writer).ConfigureAwait(false);
                 }
-                catch (Exception e)
+                catch (Exception e) when (e is not OperationCanceledException)
                 {
                     failure = e;
                 }
+                catch (OperationCanceledException)
+                {
+                    // The console is closing.
+                }
                 finally
                 {
-                    channel.Writer.TryComplete(failure is OperationCanceledException ? null : failure);
+                    channel.Writer.TryComplete(failure);
                 }
             },
             cancellationToken);
@@ -173,6 +127,7 @@ public static class ConsoleProbe
         private readonly bool _redraw;
         private readonly bool _cursorWasVisible;
         private int _width = -1;
+        private int _height = -1;
         private int _previousLineCount;
 
         public Screen(bool redraw)
@@ -199,12 +154,12 @@ public static class ConsoleProbe
             }
 
             int width = Math.Max(Console.WindowWidth - 1, 1);
-            if (width != _width)
+            int height = Console.WindowHeight;
+            if (width != _width || height != _height)
             {
                 // First frame, or the window was resized: start from a clean window.
                 Console.Clear();
-                _width = width;
-                _previousLineCount = 0;
+                (_width, _height, _previousLineCount) = (width, height, 0);
             }
 
             Console.SetCursorPosition(0, Console.WindowTop);
@@ -232,7 +187,7 @@ public static class ConsoleProbe
         /// <summary>Pads or cuts a line to the window width, without splitting a character such as an emoji.</summary>
         private static string Fit(string line, int width)
         {
-            var info = new System.Globalization.StringInfo(line);
+            var info = new StringInfo(line);
             return info.LengthInTextElements <= width
                 ? line + new string(' ', width - info.LengthInTextElements)
                 : info.SubstringByTextElements(0, width);
