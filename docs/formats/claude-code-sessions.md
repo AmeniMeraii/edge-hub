@@ -17,7 +17,7 @@ All examples on this page are invented.
     memory\                                            Claude Code's memory for that project
 ```
 
-- **The folder name cannot be decoded reliably.** Every character other than a letter or a digit becomes `-` (checked on 13 of 13 sessions), so `C:\Users\<you>\repo\edge-hub` becomes `C--Users-<you>-repo-edge-hub`, and the hyphen in `edge-hub` is lost among the others. Read the `cwd` field inside the file instead.
+- **The folder name cannot be decoded reliably.** Every character other than an ASCII letter or digit becomes `-`, accented letters included (checked on 13 of 13 sessions), and very long paths are shortened. So `C:\Users\<you>\repo\edge-hub` becomes `C--Users-<you>-repo-edge-hub`, and the hyphen in `edge-hub` is lost among the others. Read the `cwd` field inside the file instead.
 - **The file name is the session id.** Every line that has a `sessionId` matches it.
 - **Subagent files** use the parent's `sessionId`, and their lines carry `isSidechain: true` and an `agentId`.
 - **Files can be large**: up to 77 MB was observed, with single lines up to 1.3 MB.
@@ -42,7 +42,7 @@ Timestamps are ISO 8601 in UTC with milliseconds: `2026-01-15T09:30:00.000Z`.
 
 | Need | Source | Notes |
 |---|---|---|
-| Session name | `<sessionId>\custom-title.json` → `customTitle` when the file exists; else the last `custom-title` line → `customTitle`; else the last `ai-title` line → `aiTitle` | The JSON file holds the same value as the last `custom-title` line and costs far less to read than a large session file. The lines are written several times per session: keep the last one. `/rename` appends a `custom-title` line at once, followed by an `agent-name` line with the same value; `ai-title` lines keep coming afterwards, so `customTitle` wins whatever the order. Only 1 session in 13 had a `customTitle`, and 1 had no title at all, so a fallback is needed. The `slug` field (`quiet-dancing-otter`) is a random name, not a title. |
+| Session name | `<sessionId>\custom-title.json` → `customTitle` when the file exists; else the last `custom-title` line → `customTitle`; else the last `ai-title` line → `aiTitle` | The JSON file holds the same value as the last `custom-title` line and costs far less to read than a large session file. The lines are written several times per session: keep the last one. `/rename` appends a `custom-title` line at once, followed by an `agent-name` line with the same value; `ai-title` lines keep coming afterwards, so `customTitle` wins whatever the order. Only 2 sessions in 13 had a `customTitle` (one of them renamed while testing `/rename`), and 1 had no title at all, so a fallback is needed. The `slug` field (`quiet-dancing-otter`) is a random name, not a title. |
 | Start time | first `timestamp` of the file | |
 | Project folder | `cwd` on the **first** `user` / `assistant` line | `cwd` can change during a session (3 sessions in 13, up to 18 values in one). The first one matched the encoded folder name in 13 of 13 sessions, so it identifies the project; the last one only says where the session is now. |
 | Git branch | `gitBranch` on the **last** `user` / `assistant` line | Can change during a session. `HEAD` means no branch (repository without commits, or detached HEAD). |
@@ -65,12 +65,14 @@ The files hold the whole conversation and more:
 - message text, tool inputs and outputs (`message.content`, `toolUseResult`, `api-request-blob`, the `tool-results` folder);
 - the last prompt (`last-prompt`) and queued prompts (`queue-operation`);
 - backups of edited files (`file-history-*`);
-- account identifiers (`session-owner`, `artifact-autoreact-ledger`: `accountUuid`, `organizationUuid`).
+- account identifiers (`session-owner`: `accountUuid`, `organizationUuid`; `artifact-autoreact-ledger`: `accountUuid`);
+- links to pull requests, which can name a work repository (`pr-link`: `prRepository`, `prUrl`);
+- the task given to each subagent (`description` in `subagents\*.meta.json`).
 
 So the reader:
 
 - reads a fixed allowlist of fields (`type`, `timestamp`, `cwd`, `gitBranch`, `sessionId`, `isSidechain`, `customTitle`, `aiTitle`, `toolUseResult.filePath`) and ignores the rest;
-- sends the tablet only the session name, the branch, the time since the first message and the number of edited files. `cwd` and file paths never leave the PC: they can contain client or project names;
+- sends the tablet only the session name, the branch, the time since the first message and the number of edited files. Full paths never leave the PC: they can contain client or project names. Two accepted exceptions, since they are the session's name: a generated title (`aiTitle`, written from the conversation) and, as the last fallback, the last folder name of the first `cwd`;
 - is tested on invented fixtures only. Never copy a real line, even edited.
 
 ## Reading cost
@@ -79,4 +81,4 @@ Re-reading a 77 MB file every 30 seconds is wasteful. The reader should remember
 
 ## Decisions
 
-- **Session name.** Sessions are renamed after the ticket with `/rename`, every time. The reader shows `customTitle`, and falls back to `aiTitle`, then to the folder name of the first `cwd`, for sessions that were not renamed.
+- **Session name.** Sessions are renamed after the ticket with `/rename`, every time. The reader shows `customTitle`, and falls back to `aiTitle`, then to the last folder name of the first `cwd` (never the full path), for sessions that were not renamed.
