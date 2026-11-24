@@ -393,7 +393,8 @@ button.on { border-color: var(--accent); color: var(--accent); }
   };
   const toast = msg => { const t = $("toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove("show"), 2600); };
   const pad = n => String(n).padStart(2, "0");
-  const todayKey = () => new Date().toISOString().slice(0, 10);
+  // Date du jour en heure locale : toISOString() donne la date UTC, qui change à 1 h ou 2 h du matin à Paris.
+  const todayKey = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
 
   // ---------- Horloge ----------
   const dateFmt = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
