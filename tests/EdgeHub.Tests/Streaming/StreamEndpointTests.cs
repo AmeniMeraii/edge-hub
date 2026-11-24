@@ -45,7 +45,11 @@ public sealed class StreamEndpointTests : IClassFixture<EdgeHubFactory>
 
         Assert.Equal("state", eventType);
         using JsonDocument message = JsonDocument.Parse(data!);
-        Assert.Equal(12, message.RootElement.GetProperty("stats").GetProperty("cpuPercent").GetDouble());
+        JsonElement stats = message.RootElement.GetProperty("stats");
+        Assert.Equal(12, stats.GetProperty("cpuPercent").GetDouble());
+        // Only what the screen shows travels over the network: not the adapter's name, not the drives.
+        Assert.False(stats.TryGetProperty("networkInterface", out _));
+        Assert.False(stats.TryGetProperty("disks", out _));
         JsonElement media = message.RootElement.GetProperty("media");
         Assert.Equal("Demo Song", media.GetProperty("title").GetString());
         Assert.Equal(83_000, media.GetProperty("positionMs").GetInt64());

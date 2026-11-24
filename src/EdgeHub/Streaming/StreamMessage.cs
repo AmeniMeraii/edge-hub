@@ -3,13 +3,41 @@ using EdgeHub.SystemStats;
 
 namespace EdgeHub.Streaming;
 
-/// <summary>The JSON each <c>/api/stream</c> event carries. Times are in milliseconds, ready for the page's script.</summary>
-public sealed record StreamMessage(SystemSnapshot? Stats, StreamTrack? Media)
+/// <summary>
+/// The JSON each <c>/api/stream</c> event carries: only what the screen shows. The network adapter's name and the drives
+/// stay on the PC. Times are in milliseconds, ready for the page's script.
+/// </summary>
+public sealed record StreamMessage(StreamStats? Stats, StreamTrack? Media)
 {
     public static StreamMessage From(LiveState state)
     {
         ArgumentNullException.ThrowIfNull(state);
-        return new StreamMessage(state.Stats, state.Media is { } track ? StreamTrack.From(track) : null);
+        return new StreamMessage(
+            state.Stats is { } stats ? StreamStats.From(stats) : null,
+            state.Media is { } track ? StreamTrack.From(track) : null);
+    }
+}
+
+public sealed record StreamStats(
+    double CpuPercent,
+    long MemoryUsedBytes,
+    long MemoryTotalBytes,
+    double DownloadBytesPerSecond,
+    double UploadBytesPerSecond,
+    StatsHistory History,
+    DateTimeOffset TakenAt)
+{
+    public static StreamStats From(SystemSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        return new StreamStats(
+            snapshot.CpuPercent,
+            snapshot.MemoryUsedBytes,
+            snapshot.MemoryTotalBytes,
+            snapshot.DownloadBytesPerSecond,
+            snapshot.UploadBytesPerSecond,
+            snapshot.History,
+            snapshot.TakenAt);
     }
 }
 
