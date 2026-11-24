@@ -8,7 +8,7 @@ namespace EdgeHub.Tests.Security;
 public sealed class RequestLoggingTests
 {
     [Fact]
-    public void Request_logs_stay_quiet_even_when_a_provider_is_set_to_information()
+    public void Request_and_outgoing_call_logs_stay_quiet_even_when_a_provider_is_set_to_information()
     {
         var capture = new CaptureLoggerProvider();
         IConfiguration settings = new ConfigurationBuilder()
@@ -25,6 +25,7 @@ public sealed class RequestLoggingTests
         var loggers = services.GetRequiredService<ILoggerFactory>();
 
         Information(loggers.CreateLogger("Microsoft.AspNetCore.Hosting.Diagnostics"), "Request starting GET /?k=secret");
+        Information(loggers.CreateLogger("System.Net.Http.HttpClient.calendar.LogicalHandler"), "Start processing GET https://calendar.example.test/private.ics");
         Information(loggers.CreateLogger("EdgeHub.Anything"), "Other information");
 
         Assert.Equal(["Other information"], capture.Messages);

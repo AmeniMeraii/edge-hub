@@ -2,13 +2,17 @@ namespace EdgeHub.Security;
 
 public static class RequestLogging
 {
-    /// <summary>The category whose Information logs print each request's address, query string included.</summary>
-    public const string Category = "Microsoft.AspNetCore.Hosting.Diagnostics";
+    /// <summary>
+    /// Categories whose Information logs print addresses: incoming requests (the first one carries ?k=&lt;token&gt;) and
+    /// outgoing calls (the calendar's secret iCal link).
+    /// </summary>
+    public static readonly IReadOnlyList<string> Categories = ["Microsoft.AspNetCore.Hosting.Diagnostics", "System.Net.Http.HttpClient"];
 
     private static readonly string[] BuiltInProviders = ["Console", "Debug", "EventSource", "EventLog"];
 
     /// <summary>
-    /// Keeps request addresses out of every log: the first one the tablet opens carries <c>?k=&lt;token&gt;</c>.
+    /// Keeps addresses out of every log: the first one the tablet opens carries <c>?k=&lt;token&gt;</c>, and the calendar's
+    /// link is a secret.
     /// A setting for one provider (<c>Logging:Console:LogLevel</c>) beats a setting without one, so the Warning
     /// minimum is added for each built-in provider and for every provider named in the settings, after they are read.
     /// A logger outside Microsoft.Extensions.Logging (Serilog's own pipeline, for instance) must apply the same rule.
@@ -16,7 +20,11 @@ public static class RequestLogging
     public static ILoggingBuilder KeepRequestAddressesOutOfLogs(this ILoggingBuilder logging)
     {
         ArgumentNullException.ThrowIfNull(logging);
-        logging.AddFilter(Category, LogLevel.Warning);
+        foreach (string category in Categories)
+        {
+            logging.AddFilter(category, LogLevel.Warning);
+        }
+
         logging.Services.PostConfigure<LoggerFilterOptions>(options =>
         {
             IEnumerable<string> providers = options.Rules
@@ -27,7 +35,10 @@ public static class RequestLogging
                 .ToList();
             foreach (string provider in providers)
             {
-                options.Rules.Add(new LoggerFilterRule(provider, Category, LogLevel.Warning, filter: null));
+                foreach (string category in Categories)
+                {
+                    options.Rules.Add(new LoggerFilterRule(provider, category, LogLevel.Warning, filter: null));
+                }
             }
         });
         return logging;
