@@ -5,8 +5,12 @@ if (args.Contains("--console"))
     using var stop = new CancellationTokenSource();
     Console.CancelKeyPress += (_, e) =>
     {
-        e.Cancel = true;
-        stop.Cancel();
+        // First Ctrl+C: stop cleanly. A second one ends the process at once, in case something hangs.
+        if (!stop.IsCancellationRequested)
+        {
+            e.Cancel = true;
+            stop.Cancel();
+        }
     };
     return await ConsoleProbe.RunOnWindowsAsync(stop.Token);
 }
