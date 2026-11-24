@@ -38,7 +38,7 @@ Timestamps are ISO 8601 in UTC with milliseconds: `2026-11-23T20:43:33.756Z`.
 
 | Need | Source | Notes |
 |---|---|---|
-| Session name | last `custom-title` → `customTitle`, else last `ai-title` → `aiTitle` | Both are written several times per session: keep the last one. Only 1 session in 13 had a `customTitle`, and 1 had no title at all, so a fallback is needed. The `slug` field (`quiet-dancing-otter`) is a random name, not a title. |
+| Session name | last `custom-title` → `customTitle`, else last `ai-title` → `aiTitle` | Both are written several times per session: keep the last one. `/rename` appends a `custom-title` line at once, followed by an `agent-name` line with the same value; `ai-title` lines keep coming afterwards, so `customTitle` wins whatever the order. Only 1 session in 13 had a `customTitle`, and 1 had no title at all, so a fallback is needed. The `slug` field (`quiet-dancing-otter`) is a random name, not a title. |
 | Start time | first `timestamp` of the file | |
 | Project folder | `cwd` on `user` / `assistant` lines | Stable during a session. |
 | Git branch | `gitBranch` on the **last** `user` / `assistant` line | Can change during a session. `HEAD` means no branch (repository without commits, or detached HEAD). |
