@@ -1,5 +1,6 @@
 using System.Threading.Channels;
 using EdgeHub.ConsoleMode;
+using EdgeHub.Spotify;
 using EdgeHub.SystemStats;
 using EdgeHub.Tests.Spotify;
 
@@ -34,6 +35,35 @@ public sealed class ConsoleLoopTests
         Assert.Equal(["next", "next", "next", "previous"], media.Commands);
         Assert.Equal(1, stats.SampleCount);
         Assert.Contains("Précédent envoyé", frames[^1]);
+    }
+
+    [Fact]
+    public async Task Samples_again_every_second_while_no_key_is_pressed()
+    {
+        var stats = new CountingSystemStats();
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        stop.CancelAfter(TimeSpan.FromSeconds(2.5));
+
+        int exitCode = await ConsoleLoop.RunAsync(
+            stats, new FakeMediaController(accept: true), TimeProvider.System,
+            Keys(), _ => { }, initialStatus: null, stop.Token);
+
+        Assert.Equal(0, exitCode);
+        Assert.InRange(stats.SampleCount, 2, 4);
+    }
+
+    [Fact]
+    public async Task Shows_the_new_track_right_after_a_command()
+    {
+        var before = new MediaState("Spotify.exe", "First Demo Song", "Demo Artist", "", IsPlaying: true, TimeSpan.Zero, TimeSpan.FromMinutes(3));
+        var media = new FakeMediaController(accept: true) { State = before, StateAfterCommand = before with { Title = "Second Demo Song" } };
+        var frames = new List<IReadOnlyList<string>>();
+
+        await ConsoleLoop.RunAsync(
+            new CountingSystemStats(), media, TimeProvider.System,
+            Keys(ConsoleCommand.Next, ConsoleCommand.Quit), frames.Add, initialStatus: null, TestContext.Current.CancellationToken);
+
+        Assert.Contains(frames[^1], line => line.Contains("Second Demo Song", StringComparison.Ordinal));
     }
 
     [Fact]

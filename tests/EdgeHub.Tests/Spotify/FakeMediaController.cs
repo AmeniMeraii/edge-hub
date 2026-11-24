@@ -9,6 +9,9 @@ internal sealed class FakeMediaController(bool accept) : IMediaController
 
     public MediaState? State { get; set; }
 
+    /// <summary>The state the media app moves to once it has accepted a command, when the test sets one.</summary>
+    public MediaState? StateAfterCommand { get; set; }
+
     public Task<MediaState?> GetStateAsync(CancellationToken cancellationToken) => Task.FromResult(State);
 
     public Task<bool> PlayPauseAsync(CancellationToken cancellationToken) => Record("play-pause");
@@ -20,6 +23,11 @@ internal sealed class FakeMediaController(bool accept) : IMediaController
     private Task<bool> Record(string command)
     {
         Commands.Add(command);
+        if (accept && StateAfterCommand is not null)
+        {
+            State = StateAfterCommand;
+        }
+
         return Task.FromResult(accept);
     }
 }
