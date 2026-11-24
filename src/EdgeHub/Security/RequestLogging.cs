@@ -8,14 +8,14 @@ public static class RequestLogging
     /// </summary>
     public static readonly IReadOnlyList<string> Categories = ["Microsoft.AspNetCore.Hosting.Diagnostics", "System.Net.Http.HttpClient"];
 
-    private static readonly string[] BuiltInProviders = ["Console", "Debug", "EventSource", "EventLog"];
+    private static readonly string[] BuiltInProviders = ["Console", "Debug", "EventSource", "EventLog", "Serilog"];
 
     /// <summary>
     /// Keeps addresses out of every log: the first one the tablet opens carries <c>?k=&lt;token&gt;</c>, and the calendar's
     /// link is a secret.
     /// A setting for one provider (<c>Logging:Console:LogLevel</c>) beats a setting without one, so the Warning
-    /// minimum is added for each built-in provider and for every provider named in the settings, after they are read.
-    /// A logger outside Microsoft.Extensions.Logging (Serilog's own pipeline, for instance) must apply the same rule.
+    /// minimum is added for each built-in provider, the log file's (<c>Serilog</c>) and every provider named in the
+    /// settings, after they are read. A logger outside Microsoft.Extensions.Logging would have to apply the same rule.
     /// </summary>
     public static ILoggingBuilder KeepRequestAddressesOutOfLogs(this ILoggingBuilder logging)
     {
