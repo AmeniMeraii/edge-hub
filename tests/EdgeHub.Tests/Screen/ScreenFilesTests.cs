@@ -41,27 +41,31 @@ public sealed class ScreenFilesTests(EdgeHubFactory factory) : IClassFixture<Edg
         // An XML namespace (xmlns="http://www.w3.org/2000/svg") names a vocabulary: nothing is downloaded from it.
         string file = Regex.Replace(await factory.CreateClient().GetStringAsync(path, Ct), @"xmlns(?::\w+)?\s*=\s*""[^""]*""", "");
 
-        // Any absolute address (href, src, srcset, url(), fetch, EventSource, import), or one that keeps the scheme of
-        // the page ("//host/…").
-        Assert.DoesNotMatch(new Regex("""https?://""", RegexOptions.IgnoreCase), file);
+        // Any absolute address (href, src, srcset, url(), fetch, EventSource, WebSocket, import), or one that keeps the
+        // scheme of the page ("//host/…").
+        Assert.DoesNotMatch(new Regex("""(?:https?|wss?)://""", RegexOptions.IgnoreCase), file);
         Assert.DoesNotMatch(new Regex("""["'(=]\s*//[^/\s]"""), file);
         Assert.DoesNotMatch(new Regex("""@import""", RegexOptions.IgnoreCase), file);
     }
 
     [Fact]
-    public async Task Every_font_of_the_screen_is_a_woff2_file_served_by_the_pc()
+    public async Task Every_font_face_is_the_woff2_file_of_its_family_and_weight_served_by_the_pc()
     {
         HttpClient client = factory.CreateClient();
         string page = await client.GetStringAsync("/", Ct);
-        string[] fonts = Regex.Matches(page, """url\(\s*["']?(/fonts/[^"')]+\.woff2)""")
-            .Select(match => match.Groups[1].Value)
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
+        string[] faces = Regex.Matches(page, """@font-face\s*\{([^}]*)\}""").Select(match => match.Groups[1].Value).ToArray();
 
         // Chakra Petch 500 and 600, IBM Plex Sans 400, 500, 600 and 700.
-        Assert.Equal(6, fonts.Length);
-        foreach (string font in fonts)
+        Assert.Equal(6, faces.Length);
+        foreach (string face in faces)
         {
+            string family = Regex.Match(face, """font-family\s*:\s*"([^"]+)"\s*;""").Groups[1].Value;
+            string weight = Regex.Match(face, """font-weight\s*:\s*(\d+)\s*;""").Groups[1].Value;
+            string font = Regex.Match(face, """src\s*:\s*url\(\s*["']?([^"')]+)""").Groups[1].Value;
+
+            // The files are named after their family and weight (chakra-petch-600.woff2), so a face that names the
+            // wrong family, weight or file shows here.
+            Assert.Equal($"/fonts/{family.Replace(' ', '-')}-{weight}.woff2", font, ignoreCase: true);
             using var response = await client.GetAsync(font, Ct);
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             Assert.Equal("font/woff2", response.Content.Headers.ContentType?.MediaType);
