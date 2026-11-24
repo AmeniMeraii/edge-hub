@@ -590,32 +590,32 @@ button.on { border-color: var(--accent); color: var(--accent); }
 
   // ---------- Agenda (lu par le PC) ----------
   // Le PC lit l'agenda iCal et choisit la séance de sport ; la page interroge /api/calendar/today chaque minute.
-  let calEvents = null, calSportInfo = null, calCancelled = null;
+  // Les données gardent leur jour : si le PC dort après minuit, celles de la veille ne sont plus utilisées.
+  let calData = null;
   const hhmm = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const calToday = () => (calData && calData.day === todayKey() ? calData : null);
   function setCalStatus(text) { $("calStatus").textContent = text; }
   async function refreshCalendar() {
+    let failure = null;
     try {
       const response = await fetch("/api/calendar/today", { cache: "no-store" });
-      if (!response.ok) throw new Error(String(response.status));
-      const today = await response.json();
-      if (!today.configured) {
-        calEvents = null; calSportInfo = null; calCancelled = null;
-        setCalStatus("Agenda non relié au PC : choisis ta séance à la main.");
-      } else if (!today.available) {
-        setCalStatus(calEvents ? "Agenda momentanément injoignable, dernières infos affichées." : "Agenda momentanément injoignable. Nouvel essai dans une minute.");
-      } else {
-        calEvents = today.events; calSportInfo = today.sport; calCancelled = today.cancelledTitle;
-        setCalStatus(`Agenda · à jour à ${hhmm(new Date())}`);
+      if (response.status === 401) failure = "Jeton refusé : rouvre l'adresse complète avec ?k=";
+      else if (!response.ok) failure = "Le PC a répondu par une erreur";
+      else {
+        const today = await response.json();
+        if (!today.configured) { calData = null; setCalStatus("Agenda non relié au PC : choisis ta séance à la main."); }
+        else if (!today.available) failure = "Agenda momentanément injoignable";
+        else { calData = today; setCalStatus(`Agenda · à jour à ${hhmm(new Date())}`); }
       }
-    } catch {
-      setCalStatus(calEvents ? "PC injoignable, dernières infos de l'agenda affichées." : "PC injoignable : choisis ta séance à la main.");
-    }
+    } catch { failure = "PC injoignable"; }
+    if (failure) setCalStatus(calToday() ? `${failure}, dernières infos du jour affichées.` : `${failure} : choisis ta séance à la main.`);
     tickSport(new Date()); tickNext(new Date());
   }
   setCalStatus("Lecture de l'agenda…");
   function tickNext(now) {
-    if (!calEvents) { $("nextEv").textContent = ""; return; }
-    const nx = calEvents.find(e => !e.allDay && new Date(e.start) > now);
+    const today = calToday();
+    if (!today) { $("nextEv").textContent = ""; return; }
+    const nx = today.events.find(e => !e.allDay && new Date(e.start) > now);
     $("nextEv").textContent = nx ? `Ensuite · ${hhmm(new Date(nx.start))} · ${nx.title || "Sans titre"}` : "Plus rien dans ton agenda aujourd'hui.";
   }
 
@@ -628,12 +628,13 @@ button.on { border-color: var(--accent); color: var(--accent); }
   const manualOpts = [null, { label: "Course", h: 12.5 }, { label: "Muscu", h: 17 }];
   // La séance retenue vient du PC (règles de la section 4.2 du plan, mots-clés dans sa configuration).
   function calSport() {
-    if (!calEvents) return null;
-    if (calSportInfo) {
-      const start = new Date(calSportInfo.start);
-      return { label: calSportInfo.kind, h: start.getHours() + start.getMinutes() / 60, title: calSportInfo.title, cal: true };
+    const today = calToday();
+    if (!today) return null;
+    if (today.sport) {
+      const start = new Date(today.sport.start);
+      return { label: today.sport.kind, h: start.getHours() + start.getMinutes() / 60, title: today.sport.title, cal: true };
     }
-    return { none: true, cancelled: calCancelled };
+    return { none: true, cancelled: today.cancelledTitle };
   }
   let sp = store.get("sport", null);
   if (!sp || sp.day !== todayKey()) sp = { day: todayKey(), idx: 0, manual: false, done: false, nudged: "" };
@@ -642,7 +643,7 @@ button.on { border-color: var(--accent); color: var(--accent); }
     try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); audio.resume && audio.resume(); } catch {}
     if (!sp.manual) { sp.manual = true; sp.idx = 1; }
     else if (sp.idx < manualOpts.length - 1) sp.idx++;
-    else if (calEvents) { sp.manual = false; sp.idx = 0; }
+    else if (calToday()) { sp.manual = false; sp.idx = 0; }
     else sp.idx = 0;
     sp.done = false; saveSport(); tickSport(new Date());
   };

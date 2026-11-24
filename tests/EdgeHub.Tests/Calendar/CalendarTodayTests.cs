@@ -44,6 +44,7 @@ public sealed class CalendarTodayTests
         CalendarTodayMessage today = await Today(source, new DateTimeOffset(2026, 11, 19, 9, 0, 0, Paris)).GetAsync(Ct);
 
         Assert.True(today.Available);
+        Assert.Equal(Thursday, today.Day);
         Assert.Equal(2, today.Events.Count);
         Assert.Equal("Course", today.Sport?.Kind);
         Assert.Equal(new DateTimeOffset(2026, 11, 19, 12, 15, 0, Paris), today.Sport?.Start);
