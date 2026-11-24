@@ -96,7 +96,7 @@ Une entrée par choix important : le contexte, les options, la décision et ce q
 ## D16 · Agenda lu par le PC avec l'adresse iCal secrète · 24/11/2026
 - **Contexte** : le prototype lisait l'agenda par le connecteur Claude, qui ne fonctionne que dans l'appli Claude.
 - **Options** : le connecteur Claude ; l'API Google Agenda avec une connexion OAuth ; l'adresse secrète au format iCal.
-- **Décision** : l'adresse secrète iCal, téléchargée par le PC toutes les 5 minutes, ou chaque minute après un échec.
+- **Décision** : l'adresse secrète iCal, téléchargée par le PC quand l'écran la demande, au plus toutes les 5 minutes, ou chaque minute après un échec.
 - **Conséquences** : aucun compte Google à connecter, et l'écran fonctionne sans Claude. Cette adresse donne accès à tout l'agenda : elle reste dans les user-secrets ou le fichier local, n'est jamais écrite dans les journaux, et devra être réinitialisée dans Google Agenda si elle fuit. Si le téléchargement échoue, l'écran garde la dernière copie lisible pendant un jour au plus et affiche son heure de lecture.
 
 ## D17 · Une branche par phase, relue par deux agents · 24/11/2026
