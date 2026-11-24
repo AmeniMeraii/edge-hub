@@ -58,6 +58,8 @@ builder.Services.AddHealthChecks();
 var app = builder.Build();
 
 app.UseMiddleware<AccessTokenMiddleware>();
+app.UseDefaultFiles();
+app.UseStaticFiles();
 
 app.MapHealthChecks("/health");
 app.MapGet("/api/stream", (LiveStateHub hub, CancellationToken cancellationToken) =>

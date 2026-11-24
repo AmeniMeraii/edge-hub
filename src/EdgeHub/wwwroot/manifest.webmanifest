@@ -1,0 +1,15 @@
+{
+  "name": "Edge Hub",
+  "short_name": "Edge Hub",
+  "description": "Écran d'appoint pour rester concentré : horloge, focus, journée, et l'état du PC.",
+  "lang": "fr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0d1117",
+  "theme_color": "#0d1117",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

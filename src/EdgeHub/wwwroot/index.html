@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Écran Edge</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<meta name="theme-color" content="#0d1117">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -177,6 +180,13 @@ button.on { border-color: var(--accent); color: var(--accent); }
   opacity: 0; pointer-events: none; transition: opacity .25s;
 }
 .toast.show { opacity: 1; }
+
+/* Lien avec le PC */
+.pc-offline {
+  position: fixed; top: 10px; right: 12px; z-index: 11;
+  background: #2a1d10; color: var(--focus); border: 1px solid var(--focus);
+  border-radius: 99px; padding: 4px 10px; font-size: 12px;
+}
 
 /* Une seule chose */
 .now { grid-area: now; justify-content: space-between; gap: 8px; }
@@ -372,6 +382,7 @@ button.on { border-color: var(--accent); color: var(--accent); }
   </div>
 </div>
 <div class="toast" id="toast" role="status"></div>
+<div class="pc-offline" id="pcOffline" role="status" hidden>PC hors ligne</div>
 
 <script>
 (() => {
@@ -762,8 +773,23 @@ button.on { border-color: var(--accent); color: var(--accent); }
   };
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && wantWake && !lock) requestWake(); });
 
+  // ---------- Lien avec le PC (flux temps réel) ----------
+  // Les dernières données restent affichées si le PC ne répond plus ; seul l'indicateur « PC hors ligne » apparaît.
+  const live = { latest: null, lastMessageAt: Date.now() };
+  window.edgeHub = live;
+  function connectLive() {
+    if (!window.EventSource) return;
+    const source = new EventSource("/api/stream");
+    source.addEventListener("state", e => {
+      try { live.latest = JSON.parse(e.data); live.lastMessageAt = Date.now(); } catch {}
+      tickLive();
+    });
+  }
+  function tickLive() { $("pcOffline").hidden = Date.now() - live.lastMessageAt <= 5000; }
+  connectLive();
+
   // ---------- Boucle ----------
-  function loop() { const now = new Date(); tickClock(now); tickDay(now); tickFocus(); tickNow(); tickSport(now); tickBuddy(now); if (now.getSeconds() === 0) tickNext(now); }
+  function loop() { const now = new Date(); tickClock(now); tickDay(now); tickFocus(); tickNow(); tickSport(now); tickBuddy(now); tickLive(); if (now.getSeconds() === 0) tickNext(now); }
   renderHoursBtn(); renderCount(); renderTodos(); renderRemind(); renderNow(); renderIdeas(); setMode(25, false); loop();
   setInterval(loop, 250);
 })();
