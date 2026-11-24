@@ -486,6 +486,14 @@ $RECYCLE.BIN/
 appsettings.Local.json
 *.ics
 !tests/EdgeHub.Tests/Fixtures/**/*.ics
+.env.*
+*.pem
+*.key
+
+# Real data must never be committed: Claude Code sessions, local copies of real files.
+*.jsonl
+!tests/EdgeHub.Tests/Fixtures/**/*.jsonl
+/local/
 
 # Personal working files (plan, Claude Code instructions): kept out of the public repo.
 /PLAN.md
@@ -495,3 +503,4 @@ CLAUDE.local.md
 
 # Claude Code handoff notes (local only).
 .claude/handoff/
+HANDOFF.*.md
