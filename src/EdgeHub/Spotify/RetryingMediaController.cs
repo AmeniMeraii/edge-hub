@@ -3,7 +3,8 @@ namespace EdgeHub.Spotify;
 /// <summary>
 /// Creates the real media controller on first use. If Windows' media controls cannot be reached (the service starts at
 /// logon, sometimes before them), it answers "no session" and tries again 30 seconds later, instead of giving up.
-/// Creation has a time limit (5 s by default): a creation that hangs counts as a failure.
+/// Creation has a time limit (3 s by default, under the screen's 5 s "PC hors ligne" threshold), enforced even if the
+/// Windows call ignores cancellation: a creation that hangs counts as a failure.
 /// </summary>
 public sealed class RetryingMediaController(
     Func<CancellationToken, Task<IMediaController>> create,
@@ -12,7 +13,7 @@ public sealed class RetryingMediaController(
 {
     private static readonly TimeSpan RetryAfter = TimeSpan.FromSeconds(30);
 
-    private readonly TimeSpan _creationLimit = creationLimit ?? TimeSpan.FromSeconds(5);
+    private readonly TimeSpan _creationLimit = creationLimit ?? TimeSpan.FromSeconds(3);
 
     private readonly SemaphoreSlim _gate = new(1, 1);
     private IMediaController? _inner;
@@ -62,7 +63,10 @@ public sealed class RetryingMediaController(
             limit.CancelAfter(_creationLimit);
             try
             {
-                Volatile.Write(ref _inner, await create(limit.Token).ConfigureAwait(false));
+                IMediaController created = await create(limit.Token)
+                    .WaitAsync(_creationLimit, time, cancellationToken)
+                    .ConfigureAwait(false);
+                Volatile.Write(ref _inner, created);
                 return _inner;
             }
             catch (Exception) when (!cancellationToken.IsCancellationRequested)

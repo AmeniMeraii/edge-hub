@@ -37,15 +37,10 @@ public sealed class RetryingMediaControllerTests
     public async Task A_creation_that_hangs_counts_as_a_failure_and_is_retried_later()
     {
         var inner = new FakeMediaController(accept: true) { State = Track };
-        Func<CancellationToken, Task<IMediaController>> hangsThenWorks = async cancellationToken =>
-        {
-            if (++_attempts == 1)
-            {
-                await Task.Delay(Timeout.Infinite, cancellationToken);
-            }
-
-            return inner;
-        };
+        var neverAnswers = new TaskCompletionSource<IMediaController>();
+        // The first creation ignores cancellation entirely, as a stuck Windows call could.
+        Func<CancellationToken, Task<IMediaController>> hangsThenWorks = _ =>
+            ++_attempts == 1 ? neverAnswers.Task : Task.FromResult<IMediaController>(inner);
         using var media = new RetryingMediaController(hangsThenWorks, _clock, creationLimit: TimeSpan.FromMilliseconds(100));
 
         Assert.Null(await media.GetStateAsync(Ct));
