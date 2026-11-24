@@ -504,4 +504,5 @@ CLAUDE.local.md
 
 # Claude Code handoff notes (local only).
 .claude/handoff/
+HANDOFF.md
 HANDOFF.*.md
