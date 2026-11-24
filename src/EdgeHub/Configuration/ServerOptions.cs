@@ -1,4 +1,6 @@
 using System.ComponentModel.DataAnnotations;
+using System.Net;
+using System.Net.Sockets;
 
 namespace EdgeHub.Configuration;
 
@@ -15,4 +17,16 @@ public sealed class ServerOptions
     /// on the Private profile.
     /// </summary>
     public bool ListenOnNetwork { get; set; }
+
+    /// <summary>The addresses to listen on: this PC's loopback addresses only, unless <see cref="ListenOnNetwork"/> is set.</summary>
+    public IReadOnlyList<IPAddress> ListenAddresses()
+    {
+        if (ListenOnNetwork)
+        {
+            // IPv6 "any" also accepts IPv4 connections (dual mode) where IPv6 exists.
+            return [Socket.OSSupportsIPv6 ? IPAddress.IPv6Any : IPAddress.Any];
+        }
+
+        return Socket.OSSupportsIPv6 ? [IPAddress.Loopback, IPAddress.IPv6Loopback] : [IPAddress.Loopback];
+    }
 }

@@ -4,7 +4,6 @@ using EdgeHub.Security;
 using EdgeHub.Spotify;
 using EdgeHub.Streaming;
 using EdgeHub.SystemStats;
-using Microsoft.Extensions.Configuration.Json;
 
 if (args.Contains("--console"))
 {
@@ -28,25 +27,18 @@ var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 });
 
 // Personal values (token, later the calendar link) live outside git: user secrets in development, or
-// appsettings.Local.json. That file comes after appsettings.json and user secrets, and before environment variables and
-// the command line, so those can still override it as usual.
-var localSettings = new JsonConfigurationSource { Path = "appsettings.Local.json", Optional = true, ReloadOnChange = true };
-IList<IConfigurationSource> sources = ((IConfigurationBuilder)builder.Configuration).Sources;
-sources.Insert(sources.Select((source, index) => source is FileConfigurationSource ? index + 1 : 0).Max(), localSettings);
+// appsettings.Local.json, which environment variables and the command line can still override.
+builder.Configuration.AddLocalSettings();
 
-// Request logs would include the address, and the first one carries ?k=<token>: keep them quiet whatever the settings.
-builder.Logging.AddFilter("Microsoft.AspNetCore.Hosting.Diagnostics", LogLevel.Warning);
+// Request logs would print each address, and the first one carries ?k=<token>.
+builder.Logging.KeepRequestAddressesOutOfLogs();
 
 ServerOptions server = builder.Configuration.GetSection(ServerOptions.Section).Get<ServerOptions>() ?? new ServerOptions();
 builder.WebHost.ConfigureKestrel(kestrel =>
 {
-    if (server.ListenOnNetwork)
+    foreach (System.Net.IPAddress address in server.ListenAddresses())
     {
-        kestrel.ListenAnyIP(server.Port);
-    }
-    else
-    {
-        kestrel.ListenLocalhost(server.Port);
+        kestrel.Listen(address, server.Port);
     }
 });
 
