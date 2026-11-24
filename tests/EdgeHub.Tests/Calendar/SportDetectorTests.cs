@@ -11,7 +11,7 @@ public sealed class SportDetectorTests
     private static CalendarEvent At(string title, int hour, int minute = 0, int minutes = 60) =>
         new(title, Day.AddHours(hour).AddMinutes(minute), Day.AddHours(hour).AddMinutes(minute + minutes), IsAllDay: false);
 
-    // Section 4.2 of the plan: real titles from the owner's calendar, free of sensitive data.
+    // Section 4.2 of the plan: its examples, used as they are.
     [Theory]
     [InlineData("🏃 Jeudi — course COURTE sous le seuil (en attendant le kiné)", "Course")]
     [InlineData("💪 Full-body A — DÉPLACÉE samedi 21/11 — reprise S2", "Muscu")]
@@ -23,6 +23,9 @@ public sealed class SportDetectorTests
 
     [Theory]
     [InlineData("Footing tranquille", "Course")]
+    [InlineData("Footings de la semaine", "Course")]
+    [InlineData("FOOTING_matin", "Course")]
+    [InlineData("Running du dimanche", "Course")]
     [InlineData("Run club du midi", "Course")]
     [InlineData("Musculation dos", "Muscu")]
     [InlineData("Salle avec le coach", "Muscu")]
@@ -32,7 +35,8 @@ public sealed class SportDetectorTests
     [InlineData("Prune et café", null)]
     [InlineData("Marché de Noël", null)]
     [InlineData("Parcours client", null)]
-    public void Matches_whole_words_whatever_the_case(string title, string? kind)
+    [InlineData("Démarche administrative", null)]
+    public void Matches_keywords_at_the_start_of_a_word_whatever_the_case(string title, string? kind)
     {
         Assert.Equal(kind, Detector.KindOf(title));
     }

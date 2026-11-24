@@ -41,6 +41,26 @@ public sealed class CalendarOptionsTests
         Assert.Contains("Calendar:TimeZone", error.ErrorMessage, StringComparison.Ordinal);
     }
 
+    public static TheoryData<SportRules> BrokenRules => new()
+    {
+        new SportRules { Kinds = [new SportKind { Name = "Yoga", Keywords = ["yoga", ""] }] },
+        new SportRules { Kinds = [new SportKind { Name = "", Keywords = ["yoga"] }] },
+        new SportRules { Kinds = [new SportKind { Name = "Yoga", Keywords = [] }] },
+        new SportRules { Kinds = [new SportKind { Name = "Yoga", Keywords = null! }] },
+        new SportRules { CancelledWords = ["  "] },
+        new SportRules { CancelledMarkers = [""] },
+        new SportRules { CancelledWords = null! },
+    };
+
+    [Theory]
+    [MemberData(nameof(BrokenRules))]
+    public void Refuses_sport_rules_that_would_match_or_cancel_everything(SportRules rules)
+    {
+        ValidationResult error = Assert.Single(Validate(new CalendarOptions { Sport = rules }));
+
+        Assert.Contains("Calendar:Sport", error.ErrorMessage, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Uses_the_plan_rules_for_whatever_the_settings_leave_out()
     {

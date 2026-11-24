@@ -17,8 +17,8 @@ public sealed class SportRules
     {
         Kinds =
         [
-            new SportKind { Name = "Course", Keywords = ["🏃", "course", "footing", "run", "running"] },
-            new SportKind { Name = "Muscu", Keywords = ["💪", "muscu", "musculation", "full body", "salle"] },
+            new SportKind { Name = "Course", Keywords = ["🏃", "course", "footing", "run"] },
+            new SportKind { Name = "Muscu", Keywords = ["💪", "muscu", "full body", "salle"] },
             new SportKind { Name = "Marche", Keywords = ["🚶", "marche"] },
         ],
         CancelledMarkers = ["❌"],

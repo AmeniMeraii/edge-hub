@@ -91,9 +91,10 @@ public sealed class SportDetector
     }
 
     /// <summary>
-    /// A keyword with letters matches a whole word, whatever the case (« run » does not match « Prune »); spaces and
-    /// hyphens inside it are optional (« full body » matches « Full-body »). A keyword without letters, such as an
-    /// emoji, matches anywhere.
+    /// A keyword with letters matches at the start of a word, whatever the case: « footing » matches « Footings »,
+    /// « muscu » matches « Musculation », but « run » does not match « Prune ». Accented letters count as letters, so
+    /// « marche » matches neither « Marché » nor « Démarche ». Spaces and hyphens inside a keyword are optional
+    /// (« full body » matches « Full-body »). A keyword without letters, such as an emoji, matches anywhere.
     /// </summary>
     private static Func<string, bool> Matcher(string keyword)
     {
@@ -103,7 +104,7 @@ public sealed class SportDetector
         }
 
         string body = string.Join("[- ]?", keyword.Split([' ', '-'], StringSplitOptions.RemoveEmptyEntries).Select(Regex.Escape));
-        var pattern = new Regex($@"(?<!\w){body}(?!\w)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
+        var pattern = new Regex($@"(?<!\w){body}", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
         return pattern.IsMatch;
     }
 }

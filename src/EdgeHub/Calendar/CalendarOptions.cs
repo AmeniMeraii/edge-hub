@@ -29,9 +29,9 @@ public sealed class CalendarOptions : IValidatableObject
             SportRules defaults = SportRules.Default;
             return new SportRules
             {
-                Kinds = Sport.Kinds.Count > 0 ? Sport.Kinds : defaults.Kinds,
-                CancelledMarkers = Sport.CancelledMarkers.Count > 0 ? Sport.CancelledMarkers : defaults.CancelledMarkers,
-                CancelledWords = Sport.CancelledWords.Count > 0 ? Sport.CancelledWords : defaults.CancelledWords,
+                Kinds = Sport?.Kinds is { Count: > 0 } kinds ? kinds : defaults.Kinds,
+                CancelledMarkers = Sport?.CancelledMarkers is { Count: > 0 } markers ? markers : defaults.CancelledMarkers,
+                CancelledWords = Sport?.CancelledWords is { Count: > 0 } words ? words : defaults.CancelledWords,
             };
         }
     }
@@ -42,12 +42,30 @@ public sealed class CalendarOptions : IValidatableObject
             && !(Uri.TryCreate(IcalUrl, UriKind.Absolute, out Uri? link) && (link.Scheme == Uri.UriSchemeHttps || link.Scheme == Uri.UriSchemeHttp)))
         {
             // The message never repeats the link: it is a secret.
-            yield return new ValidationResult("Calendar:IcalUrl doit être une adresse web complète (https://…).", [nameof(IcalUrl)]);
+            yield return new ValidationResult("Calendar:IcalUrl doit être une adresse web complète (http:// ou https://).", [nameof(IcalUrl)]);
         }
 
         if (!TimeZoneInfo.TryFindSystemTimeZoneById(TimeZone, out _))
         {
             yield return new ValidationResult($"Calendar:TimeZone « {TimeZone} » est inconnu (exemple : Europe/Paris).", [nameof(TimeZone)]);
+        }
+
+        // An empty keyword would make every event a session; an empty cancel word or marker would cancel them all.
+        bool kindsBroken = Sport?.Kinds is { } kinds && kinds.Any(kind =>
+            kind is null || string.IsNullOrWhiteSpace(kind.Name) || kind.Keywords is not { Count: > 0 } || kind.Keywords.Any(string.IsNullOrWhiteSpace));
+        if (Sport is null || Sport.Kinds is null || kindsBroken)
+        {
+            yield return new ValidationResult(
+                "Calendar:Sport:Kinds : chaque type de séance a besoin d'un nom et d'au moins un mot-clé, sans mot-clé vide.",
+                [nameof(Sport)]);
+        }
+
+        if (Sport?.CancelledMarkers is null || Sport.CancelledWords is null
+            || Sport.CancelledMarkers.Concat(Sport.CancelledWords).Any(string.IsNullOrWhiteSpace))
+        {
+            yield return new ValidationResult(
+                "Calendar:Sport : les marqueurs et les mots d'annulation ne peuvent pas être vides.",
+                [nameof(Sport)]);
         }
     }
 }
