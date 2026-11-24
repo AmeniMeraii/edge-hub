@@ -1,6 +1,8 @@
 using System.Net;
+using EdgeHub.LogFiles;
 using EdgeHub.Tests.TestSupport;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Logging;
 
 namespace EdgeHub.Tests.LogFiles;
 
@@ -33,6 +35,31 @@ public sealed class LogFileTests
         }
     }
 
+    [Fact]
+    public void The_file_keeps_request_and_outgoing_call_logs_out_even_without_the_logging_rules()
+    {
+        DirectoryInfo folder = Directory.CreateTempSubdirectory("edgehub-logs-");
+        try
+        {
+            using (ILoggerProvider provider = LogFile.CreateProvider(new LogFileOptions { Folder = folder.FullName }))
+            {
+                provider.CreateLogger("Microsoft.AspNetCore.Hosting.Diagnostics").Log(LogLevel.Information, default, "Request starting GET /?k=secret", null, (state, _) => state);
+                provider.CreateLogger("System.Net.Http.HttpClient.calendar.LogicalHandler").Log(LogLevel.Information, default, "GET https://calendar.example.test/private.ics", null, (state, _) => state);
+                provider.CreateLogger("Microsoft.AspNetCore.Server.Kestrel.BadRequests").Log(LogLevel.Debug, default, "Invalid request line: 'GET /?k=secret'", null, (state, _) => state);
+                provider.CreateLogger("EdgeHub.Anything").Log(LogLevel.Information, default, "Other information", null, (state, _) => state);
+            }
+
+            string logs = string.Concat(folder.GetFiles("edgehub-*.log").Select(file => File.ReadAllText(file.FullName)));
+            Assert.Contains("Other information", logs, StringComparison.Ordinal);
+            Assert.DoesNotContain("secret", logs, StringComparison.Ordinal);
+            Assert.DoesNotContain("private.ics", logs, StringComparison.Ordinal);
+        }
+        finally
+        {
+            folder.Delete(recursive: true);
+        }
+    }
+
     /// <summary>Writes the log file to a test folder, with every category of the file set to Trace.</summary>
     private sealed class LogFileFactory(string folder) : EdgeHubFactory
     {
@@ -40,6 +67,7 @@ public sealed class LogFileTests
         {
             ["Logs:Folder"] = folder,
             ["Logging:Serilog:LogLevel:Default"] = "Trace",
+            ["Logging:Serilog:LogLevel:Microsoft.AspNetCore.Hosting.Diagnostics*"] = "Trace",
         };
     }
 }
