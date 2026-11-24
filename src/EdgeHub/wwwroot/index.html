@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Écran Edge</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<meta name="theme-color" content="#0d1117">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -177,6 +180,13 @@ button.on { border-color: var(--accent); color: var(--accent); }
   opacity: 0; pointer-events: none; transition: opacity .25s;
 }
 .toast.show { opacity: 1; }
+
+/* Lien avec le PC */
+.pc-offline {
+  position: fixed; top: 10px; right: 12px; z-index: 11;
+  background: #2a1d10; color: var(--focus); border: 1px solid var(--focus);
+  border-radius: 99px; padding: 4px 10px; font-size: 12px;
+}
 
 /* Une seule chose */
 .now { grid-area: now; justify-content: space-between; gap: 8px; }
@@ -372,6 +382,7 @@ button.on { border-color: var(--accent); color: var(--accent); }
   </div>
 </div>
 <div class="toast" id="toast" role="status"></div>
+<div class="pc-offline" id="pcOffline" role="status" hidden>PC hors ligne</div>
 
 <script>
 (() => {
@@ -382,7 +393,8 @@ button.on { border-color: var(--accent); color: var(--accent); }
   };
   const toast = msg => { const t = $("toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove("show"), 2600); };
   const pad = n => String(n).padStart(2, "0");
-  const todayKey = () => new Date().toISOString().slice(0, 10);
+  // Date du jour en heure locale : toISOString() donne la date UTC, qui change à 1 h ou 2 h du matin à Paris.
+  const todayKey = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
 
   // ---------- Horloge ----------
   const dateFmt = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
@@ -461,6 +473,8 @@ button.on { border-color: var(--accent); color: var(--accent); }
     $("fStart").textContent = endAt ? "Pause" : (remain < dur ? "Reprendre" : "Démarrer");
   }
   function tickFocus() {
+    // L'écran reste ouvert jour et nuit : le compteur de sessions repart de zéro à minuit.
+    if (sessions.day !== todayKey()) { sessions = { day: todayKey(), n: 0 }; store.set("sessions", sessions); renderCount(); }
     if (!endAt) return;
     remain = (endAt - Date.now()) / 1000;
     if (remain <= 0) {
@@ -620,7 +634,7 @@ button.on { border-color: var(--accent); color: var(--accent); }
   setCalStatus("Connexion à Google Agenda…");
   (async () => {
     try { mcpNs = window.claude && typeof window.claude.use === "function" ? await window.claude.use("mcp") : null; } catch { mcpNs = null; }
-    if (!mcpNs) { setCalStatus("Ouvre la page dans Claude pour la relier à ton agenda. En attendant, choisis ta séance à la main."); return; }
+    if (!mcpNs) { setCalStatus("L'agenda n'est pas encore relié à cet écran : choisis ta séance à la main."); return; }
     watchCal();
   })();
   function tickNext(now) {
@@ -762,8 +776,45 @@ button.on { border-color: var(--accent); color: var(--accent); }
   };
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && wantWake && !lock) requestWake(); });
 
+  // ---------- Lien avec le PC (flux temps réel) ----------
+  // Les dernières données restent affichées si le PC ne répond plus ; seul l'indicateur « PC hors ligne » apparaît.
+  // Le flux se reconnecte seul, y compris après un refus ou une connexion morte sans erreur (PC en veille, Wi-Fi perdu).
+  const live = { latest: null, lastMessageAt: Date.now(), openedAt: 0, refused: false, source: null, retry: null };
+  window.edgeHub = live;
+  function connectLive() {
+    if (!window.EventSource) return;
+    clearTimeout(live.retry);
+    if (live.source) live.source.close();
+    live.openedAt = Date.now();
+    const source = new EventSource("/api/stream");
+    live.source = source;
+    source.addEventListener("state", e => {
+      try { live.latest = JSON.parse(e.data); live.lastMessageAt = Date.now(); live.refused = false; } catch {}
+      tickLive();
+    });
+    source.onerror = () => {
+      // Une erreur réseau est retentée par le navigateur ; un refus (401) ou une erreur du serveur ferme le flux pour de bon.
+      if (source.readyState === EventSource.CLOSED) { checkRefused(); live.retry = setTimeout(connectLive, 5000); }
+    };
+  }
+  async function checkRefused() {
+    try {
+      const response = await fetch("/api/stream", { cache: "no-store", signal: AbortSignal.timeout(3000) });
+      live.refused = response.status === 401;
+      if (response.body) response.body.cancel();
+    } catch { live.refused = false; }
+  }
+  function tickLive() {
+    const silent = Date.now() - live.lastMessageAt;
+    const badge = $("pcOffline");
+    badge.hidden = silent <= 5000;
+    badge.textContent = live.refused ? "Jeton refusé : rouvre l'adresse complète avec ?k=" : "PC hors ligne";
+    if (silent > 15000 && Date.now() - live.openedAt > 15000) connectLive();
+  }
+  connectLive();
+
   // ---------- Boucle ----------
-  function loop() { const now = new Date(); tickClock(now); tickDay(now); tickFocus(); tickNow(); tickSport(now); tickBuddy(now); if (now.getSeconds() === 0) tickNext(now); }
+  function loop() { const now = new Date(); tickClock(now); tickDay(now); tickFocus(); tickNow(); tickSport(now); tickBuddy(now); tickLive(); if (now.getSeconds() === 0) tickNext(now); }
   renderHoursBtn(); renderCount(); renderTodos(); renderRemind(); renderNow(); renderIdeas(); setMode(25, false); loop();
   setInterval(loop, 250);
 })();
