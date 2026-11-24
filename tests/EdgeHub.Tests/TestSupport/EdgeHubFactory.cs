@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Configuration.Json;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace EdgeHub.Tests.TestSupport;
@@ -25,10 +26,22 @@ public class EdgeHubFactory : WebApplicationFactory<Program>
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        builder.ConfigureAppConfiguration(config => config.AddInMemoryCollection(new Dictionary<string, string?>
+        // Not "Development": the developer's user secrets are not loaded. Their appsettings.Local.json is removed too.
+        builder.UseEnvironment("Testing");
+        builder.ConfigureAppConfiguration(config =>
         {
-            ["Security:Token"] = ConfiguredToken,
-        }));
+            foreach (IConfigurationSource local in config.Sources
+                .Where(s => s is JsonConfigurationSource { Path: "appsettings.Local.json" })
+                .ToList())
+            {
+                config.Sources.Remove(local);
+            }
+
+            config.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Security:Token"] = ConfiguredToken,
+            });
+        });
         builder.ConfigureTestServices(services =>
         {
             services.AddSingleton<ISystemStats>(Stats);
