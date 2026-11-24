@@ -9,4 +9,8 @@
     <UserSecretsId>edgehub-service</UserSecretsId>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Ical.Net" Version="5.2.4" />
+  </ItemGroup>
+
 </Project>
