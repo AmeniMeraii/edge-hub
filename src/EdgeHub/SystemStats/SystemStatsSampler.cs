@@ -20,6 +20,9 @@ public sealed record SystemSnapshot(
     string? NetworkInterface,
     IReadOnlyList<DiskUsage> Disks)
 {
+    /// <summary>When the readings were taken, so a reader can tell stale data from fresh data.</summary>
+    public DateTimeOffset TakenAt { get; init; }
+
     public StatsHistory History { get; init; } = StatsHistory.Empty;
 }
 
@@ -88,18 +91,19 @@ public sealed class SystemStatsSampler(ISystemReadings readings, TimeProvider ti
             _previousNetwork = network;
             _previousNetworkTimestamp = networkTimestamp;
 
-            // The first reading only sets the starting point: its CPU load and rates mean nothing yet.
+            // The first reading only sets the starting point: its CPU load and rates mean nothing yet. No history gets a
+            // point from it, so all four stay aligned, index for index.
             if (!isFirst)
             {
                 _cpu.Add(cpuPercent);
+                _memory.Add(memory.TotalBytes > 0 ? memoryUsed * 100.0 / memory.TotalBytes : 0);
                 _download.Add(download);
                 _upload.Add(upload);
             }
 
-            _memory.Add(memory.TotalBytes > 0 ? memoryUsed * 100.0 / memory.TotalBytes : 0);
-
             var snapshot = new SystemSnapshot(cpuPercent, memoryUsed, memory.TotalBytes, download, upload, network?.InterfaceName, readings.ReadDisks())
             {
+                TakenAt = time.GetUtcNow(),
                 History = new StatsHistory(_cpu.Values, _memory.Values, _download.Values, _upload.Values),
             };
             Volatile.Write(ref _latest, snapshot);

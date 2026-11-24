@@ -11,7 +11,7 @@ public sealed class SystemStatsSamplerTests
     private SystemStatsSampler CreateSampler() => new(_readings, _clock);
 
     [Fact]
-    public void First_sample_has_no_cpu_load_and_no_traffic_and_adds_no_point_for_them()
+    public void First_sample_only_sets_the_starting_point_and_adds_no_point_to_any_history()
     {
         _readings.Cpu = new CpuTimes(Idle: 1000, Kernel: 3000, User: 1000);
         _readings.Network = new NetworkReading("Wi-Fi", BytesReceived: 1_000_000, BytesSent: 200_000);
@@ -24,7 +24,7 @@ public sealed class SystemStatsSamplerTests
         Assert.Empty(snapshot.History.Cpu);
         Assert.Empty(snapshot.History.Download);
         Assert.Empty(snapshot.History.Upload);
-        Assert.Single(snapshot.History.MemoryPercent);
+        Assert.Empty(snapshot.History.MemoryPercent);
     }
 
     [Fact]
@@ -85,9 +85,12 @@ public sealed class SystemStatsSamplerTests
     [Fact]
     public void Memory_used_is_total_minus_available_and_its_share_goes_to_the_history()
     {
+        var sampler = CreateSampler();
+        sampler.Sample();
         _readings.Memory = new MemoryReading(TotalBytes: 16L << 30, AvailableBytes: 6L << 30);
+        _clock.Advance(TimeSpan.FromSeconds(1));
 
-        SystemSnapshot snapshot = CreateSampler().Sample();
+        SystemSnapshot snapshot = sampler.Sample();
 
         Assert.Equal(10L << 30, snapshot.MemoryUsedBytes);
         Assert.Equal(16L << 30, snapshot.MemoryTotalBytes);
@@ -153,6 +156,16 @@ public sealed class SystemStatsSamplerTests
         sampler.Sample();
 
         Assert.Single(earlier.History.Cpu);
+    }
+
+    [Fact]
+    public void A_snapshot_says_when_it_was_taken()
+    {
+        var sampler = CreateSampler();
+        sampler.Sample();
+        _clock.Advance(TimeSpan.FromSeconds(1));
+
+        Assert.Equal(new DateTimeOffset(2026, 1, 15, 9, 30, 1, TimeSpan.Zero), sampler.Sample().TakenAt);
     }
 
     [Fact]
