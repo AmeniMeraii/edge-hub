@@ -52,16 +52,21 @@ public sealed class RequestLoggingTests
         Assert.Empty(capture.Messages);
     }
 
-    [Fact]
-    public void A_wildcard_rule_elsewhere_keeps_its_level()
+    [Theory]
+    [InlineData("EdgeHub.*", "EdgeHub.Calendar.IcalCalendarSource")]
+    // Longer than the quiet categories, but they cannot apply to them.
+    [InlineData("*EdgeHub.Calendar.IcalCalendarSource", "EdgeHub.Calendar.IcalCalendarSource")]
+    [InlineData("Microsoft.AspNetCore.*Routing.EndpointMiddleware", "Microsoft.AspNetCore.Routing.EndpointMiddleware")]
+    [InlineData("Microsoft.AspNetCore.Server.Kestrel.*Connections", "Microsoft.AspNetCore.Server.Kestrel.Connections")]
+    public void A_wildcard_rule_elsewhere_keeps_its_level(string pattern, string category)
     {
         var capture = new CaptureLoggerProvider();
-        using ServiceProvider services = Services(capture, new() { ["Logging:Capture:LogLevel:EdgeHub.*"] = "Debug" });
+        using ServiceProvider services = Services(capture, new() { ["Logging:Capture:LogLevel:" + pattern] = "Debug" });
 
-        services.GetRequiredService<ILoggerFactory>().CreateLogger("EdgeHub.Calendar.IcalCalendarSource")
-            .Log(LogLevel.Debug, default, "Calendar read", null, (state, _) => state);
+        services.GetRequiredService<ILoggerFactory>().CreateLogger(category)
+            .Log(LogLevel.Debug, default, "Debug line", null, (state, _) => state);
 
-        Assert.Equal(["Calendar read"], capture.Messages);
+        Assert.Equal(["Debug line"], capture.Messages);
     }
 
     private static ServiceProvider Services(CaptureLoggerProvider capture, Dictionary<string, string?> values)

@@ -9,6 +9,11 @@ public static class RequestLogging
     public static readonly IReadOnlyList<string> Categories =
         ["Microsoft.AspNetCore.Hosting.Diagnostics", "Microsoft.AspNetCore.Server.Kestrel.BadRequests", "System.Net.Http.HttpClient"];
 
+    private const string HttpClientCategory = "System.Net.Http.HttpClient";
+
+    /// <summary>The categories below <see cref="HttpClientCategory"/>: System.Net.Http.HttpClient.&lt;client&gt;.LogicalHandler or .ClientHandler.</summary>
+    private static readonly string[] HttpClientHandlers = ["LogicalHandler", "ClientHandler"];
+
     private static readonly string[] BuiltInProviders = ["Console", "Debug", "EventSource", "EventLog", "Serilog"];
 
     /// <summary>
@@ -61,8 +66,8 @@ public static class RequestLogging
 
     /// <summary>
     /// True when a rule could apply to the category, or to one below it, and beat the Warning rule added for it: it is
-    /// longer (the wildcard counts as a character, as in the logging's own choice), and its part before the wildcard
-    /// is compatible with the category.
+    /// longer (the wildcard counts as a character, as in the logging's own choice) and matches the way the logging
+    /// matches, the start before the wildcard and the end after it, whatever the case.
     /// </summary>
     private static bool MayOutrank(string pattern, string category)
     {
@@ -72,8 +77,17 @@ public static class RequestLogging
         }
 
         int wildcard = pattern.IndexOf('*', StringComparison.Ordinal);
-        string prefix = wildcard < 0 ? pattern : pattern[..wildcard];
-        return prefix.StartsWith(category, StringComparison.OrdinalIgnoreCase)
-            || category.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+        string start = wildcard < 0 ? pattern : pattern[..wildcard];
+        string end = wildcard < 0 ? "" : pattern[(wildcard + 1)..];
+        if (category != HttpClientCategory)
+        {
+            // A single category, with nothing below it.
+            return category.StartsWith(start, StringComparison.OrdinalIgnoreCase) && category.EndsWith(end, StringComparison.OrdinalIgnoreCase);
+        }
+
+        // Any client name may sit between the two: only the start and the handler at the end limit what applies.
+        bool startFits = start.StartsWith(category, StringComparison.OrdinalIgnoreCase) || category.StartsWith(start, StringComparison.OrdinalIgnoreCase);
+        return startFits && HttpClientHandlers.Any(handler =>
+            end.EndsWith(handler, StringComparison.OrdinalIgnoreCase) || handler.EndsWith(end, StringComparison.OrdinalIgnoreCase));
     }
 }
