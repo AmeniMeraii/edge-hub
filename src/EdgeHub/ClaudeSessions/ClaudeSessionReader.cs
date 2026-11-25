@@ -87,9 +87,10 @@ public sealed partial class ClaudeSessionReader(IOptionsMonitor<ClaudeCodeOption
                 file.ReadNewLines();
                 files.Add(file);
             }
-            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            catch (Exception e) when (e is not OutOfMemoryException)
             {
-                // Being written or moved: the next pass reads it. The path is not logged.
+                // Being written or moved, or anything unexpected: this file waits for the next pass, the others go on.
+                // The path is not logged.
                 LogUnreadable(logger);
             }
         }
@@ -103,11 +104,23 @@ public sealed partial class ClaudeSessionReader(IOptionsMonitor<ClaudeCodeOption
 
         string name = CustomTitleFile(sessionFolder) ?? session.CustomTitle ?? session.AiTitle ?? FolderName(session.FirstCwd) ?? "Claude Code";
         return new ActiveSession(
-            name.Length > MaxNameLength ? name[..MaxNameLength] : name,
+            Shorten(name),
             session.LastBranch is null or "HEAD" ? null : session.LastBranch,
             session.FirstTimestamp,
             lastActivity,
             files.SelectMany(f => f.EditedFiles).Distinct(StringComparer.OrdinalIgnoreCase).Count());
+    }
+
+    /// <summary>At most <see cref="MaxNameLength"/> characters, without cutting an emoji in half.</summary>
+    private static string Shorten(string name)
+    {
+        if (name.Length <= MaxNameLength)
+        {
+            return name;
+        }
+
+        int cut = char.IsHighSurrogate(name[MaxNameLength - 1]) ? MaxNameLength - 1 : MaxNameLength;
+        return name[..cut].TrimEnd();
     }
 
     /// <summary>The name given with <c>/rename</c>, kept next to the session file: far cheaper than the session itself.</summary>

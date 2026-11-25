@@ -146,10 +146,86 @@ public sealed class ClaudeSessionReaderTests : IDisposable
     [Fact]
     public void Keeps_the_most_recent_of_two_active_sessions()
     {
-        _folder.Write("a1", Ago(4), [User(Ago(9)), CustomTitle("DEMO-101"), Assistant(Ago(4))]);
+        // The most recent one is found first, so keeping the last one found would fail.
+        _folder.Write("a1", Ago(2), [User(Ago(9)), CustomTitle("DEMO-101"), Assistant(Ago(2))]);
+        _folder.Write("a2", Ago(4), [User(Ago(9)), CustomTitle("DEMO-102"), Assistant(Ago(4))]);
+
+        Assert.Equal("DEMO-101", Reader().FindActive()?.Name);
+    }
+
+    [Fact]
+    public void Does_not_read_again_the_lines_it_has_already_read()
+    {
+        string path = _folder.Write("a1", Ago(1), [User(Ago(5), text: new string('x', 400)), AiTitle("Export"), Assistant(Ago(1))]);
+        ClaudeSessionReader reader = Reader();
+        Assert.Equal("Export", reader.FindActive()?.Name);
+
+        // The title line changes in place, past the start of the file: only a full read would see it.
+        File.WriteAllText(path, File.ReadAllText(path).Replace(AiTitle("Export"), AiTitle("Autre!"), StringComparison.Ordinal));
+        File.AppendAllText(path, Assistant(Now) + "\n");
+        File.SetLastWriteTimeUtc(path, Now.UtcDateTime);
+
+        Assert.Equal("Export", reader.FindActive()?.Name);
+    }
+
+    [Fact]
+    public void Starts_over_when_a_file_is_replaced_by_a_longer_one()
+    {
+        _folder.Write("a1", Ago(1), [User(Ago(5)), AiTitle("Export"), Assistant(Ago(1))]);
+        ClaudeSessionReader reader = Reader();
+        Assert.Equal("Export", reader.FindActive()?.Name);
+
+        _folder.Write("a1", Now, [User(Ago(3), cwd: @"C:\Users\demo\repo\library"), AiTitle("Recherche par auteur, une session bien plus longue"), Assistant(Now)]);
+
+        ActiveSession session = Assert.IsType<ActiveSession>(reader.FindActive());
+        Assert.Equal("Recherche par auteur, une session bien plus longue", session.Name);
+        Assert.Equal(Ago(3), session.StartedAt);
+    }
+
+    [Fact]
+    public void A_broken_line_never_stops_the_search()
+    {
+        // A tool result followed by more JSON on the same line, and a title ending with half an emoji.
+        string trailing = Edited(Ago(4), @"C:\Users\demo\repo\bookshelf\Export.cs") + """{"type":"assistant"}""";
+        string halfEmoji = """{"type":"ai-title","aiTitle":"Export \ud83d"}""";
+        _folder.Write("a1", Ago(1), [User(Ago(5)), trailing, halfEmoji, AiTitle("Export CSV"), Assistant(Ago(1))]);
         _folder.Write("a2", Ago(2), [User(Ago(9)), CustomTitle("DEMO-102"), Assistant(Ago(2))]);
 
-        Assert.Equal("DEMO-102", Reader().FindActive()?.Name);
+        ActiveSession session = Assert.IsType<ActiveSession>(Reader().FindActive());
+
+        Assert.Equal("Export CSV", session.Name);
+    }
+
+    [Fact]
+    public void Counts_a_file_edited_by_the_session_and_one_of_its_subagents_once()
+    {
+        _folder.Write("a1", Ago(1), [User(Ago(9)), Edited(Ago(8), @"C:\Users\demo\repo\bookshelf\Export.cs"), Assistant(Ago(1))]);
+        _folder.Write("a1", Ago(2), [Edited(Ago(2), "C:/Users/demo/repo/bookshelf/Export.cs")], subagent: "x1");
+
+        Assert.Equal(1, Reader().FindActive()?.EditedFiles);
+    }
+
+    [Fact]
+    public void Skips_a_byte_order_mark_and_an_empty_branch()
+    {
+        string path = _folder.Write("a1", Ago(1), [User(Ago(30), branch: ""), Assistant(Ago(1), branch: "")]);
+        File.WriteAllBytes(path, [0xEF, 0xBB, 0xBF, .. File.ReadAllBytes(path)]);
+        File.SetLastWriteTimeUtc(path, Ago(1).UtcDateTime);
+
+        ActiveSession session = Assert.IsType<ActiveSession>(Reader().FindActive());
+
+        Assert.Equal(Ago(30), session.StartedAt);
+        Assert.Null(session.Branch);
+    }
+
+    [Fact]
+    public void Shortens_a_long_name_without_cutting_an_emoji_in_half()
+    {
+        _folder.Write("a1", Ago(1), [User(Ago(5)), CustomTitle(new string('a', 119) + "🙂 la suite"), Assistant(Ago(1))]);
+
+        string name = Assert.IsType<ActiveSession>(Reader().FindActive()).Name;
+
+        Assert.Equal(new string('a', 119), name);
     }
 
     [Fact]

@@ -11,7 +11,11 @@ namespace EdgeHub.ClaudeSessions;
 /// </summary>
 internal sealed class SessionFile(string path)
 {
+    /// <summary>The start of the file, to notice a file replaced by another one, longer or shorter.</summary>
+    private const int HeadLength = 256;
+
     private long _offset;
+    private byte[] _head = [];
 
     public string Path { get; } = path;
 
@@ -41,11 +45,15 @@ internal sealed class SessionFile(string path)
     public void ReadNewLines()
     {
         using var stream = new FileStream(Path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 1, FileOptions.SequentialScan);
-        if (stream.Length < _offset)
+        byte[] head = new byte[(int)Math.Min(HeadLength, stream.Length)];
+        stream.ReadExactly(head);
+        if (stream.Length < _offset || !head.AsSpan().StartsWith(_head))
         {
-            // Replaced by a shorter file: start over.
+            // Claude Code only appends: another start means another file. Read it from the beginning.
             Reset();
         }
+
+        _head = head;
 
         stream.Seek(_offset, SeekOrigin.Begin);
         byte[] chunk = ArrayPool<byte>.Shared.Rent(64 * 1024);
@@ -87,6 +95,7 @@ internal sealed class SessionFile(string path)
     private void Reset()
     {
         _offset = 0;
+        _head = [];
         FirstTimestamp = LastActivity = null;
         FirstCwd = LastBranch = CustomTitle = AiTitle = null;
         EditedFiles.Clear();
@@ -94,16 +103,19 @@ internal sealed class SessionFile(string path)
 
     private void ReadLine(ReadOnlySpan<byte> line)
     {
-        TopLevel top;
         try
         {
-            top = TopLevel.Read(line);
+            ReadFields(line.StartsWith("\uFEFF"u8) ? line[3..] : line);
         }
-        catch (JsonException)
+        catch (Exception e) when (e is JsonException or InvalidOperationException or ArgumentException or FormatException)
         {
-            // A broken line is skipped.
-            return;
+            // A broken line (bad JSON, half an emoji in a string…) is skipped, and the reading goes on after it.
         }
+    }
+
+    private void ReadFields(ReadOnlySpan<byte> line)
+    {
+        TopLevel top = TopLevel.Read(line);
 
         DateTimeOffset? at = top.Timestamp is { } stamp
             && DateTimeOffset.TryParse(stamp, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out DateTimeOffset parsed)
@@ -122,10 +134,11 @@ internal sealed class SessionFile(string path)
             case "user" or "assistant":
                 LastActivity = at ?? LastActivity;
                 FirstCwd ??= top.Cwd;
-                LastBranch = top.GitBranch ?? LastBranch;
+                LastBranch = string.IsNullOrWhiteSpace(top.GitBranch) ? LastBranch : top.GitBranch;
                 if (top.Type == "user" && top.HasToolUseResult && EditedFile(line) is { } file)
                 {
-                    EditedFiles.Add(file);
+                    // The same file may be written with / or \.
+                    EditedFiles.Add(file.Replace('/', '\\'));
                 }
 
                 break;

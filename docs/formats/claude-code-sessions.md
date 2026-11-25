@@ -71,7 +71,7 @@ The files hold the whole conversation and more:
 
 So the reader:
 
-- reads a fixed allowlist of fields (`type`, `timestamp`, `cwd`, `gitBranch`, `sessionId`, `isSidechain`, `customTitle`, `aiTitle`, `toolUseResult.filePath`) and ignores the rest;
+- reads a fixed allowlist of fields (`type`, `timestamp`, `cwd`, `gitBranch`, `sessionId`, `isSidechain`, `customTitle`, `aiTitle`, `toolUseResult.filePath`, and `is_error` of the `tool_result` blocks in `message.content`) and ignores the rest. The top-level fields are read without building the whole line; only the `user` lines that carry a `toolUseResult` are parsed in full, in memory and for that line only, to read the file path and the error flag;
 - sends the tablet only the session name, the branch, the time since the first message and the number of edited files. Full paths never leave the PC: they can contain client or project names. Two accepted exceptions, since they are the session's name: a generated title (`aiTitle`, written from the conversation) and, as the last fallback, the last folder name of the first `cwd`;
 - is tested on invented fixtures only. Never copy a real line, even edited.
 
