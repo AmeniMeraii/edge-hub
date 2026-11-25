@@ -144,6 +144,77 @@ public sealed class JournalParserTests
     }
 
     [Fact]
+    public void Recognises_a_state_written_in_bold_or_after_a_symbol()
+    {
+        JournalDay day = JournalParser.Parse("""
+            # Préparation du 25/11/2026
+            ## Réunion technique
+            ### Suivi des décisions précédentes
+            - Paginer l'API → **appliquée**
+            - Cacher les couvertures → ✅ en cours
+            """);
+
+        Preparation preparation = Assert.IsType<Preparation>(day.Preparation);
+        Assert.Equal([DecisionStatus.Applied, DecisionStatus.InProgress], preparation.FollowUps.Select(d => d.Status));
+        Assert.Equal("appliquée", preparation.FollowUps[0].StateText);
+    }
+
+    [Fact]
+    public void Reads_a_ticket_whose_fields_are_nested_bullets_as_one_line()
+    {
+        JournalDay day = JournalParser.Parse("""
+            # Préparation du 25/11/2026
+            ## Daily (PO et testeurs)
+            - **DEMO-101 Export CSV**
+              - Fait : colonnes
+              - Reste : tri
+              - Testable : oui
+            - DEMO-102 Recherche · Fait : index · Reste : tests · Testable : non
+            """);
+
+        Preparation preparation = Assert.IsType<Preparation>(day.Preparation);
+        Assert.Equal(["DEMO-101", "DEMO-102"], preparation.Daily.Select(l => l.Ticket));
+        Assert.Equal(("colonnes", "tri", "oui"), (preparation.Daily[0].Done, preparation.Daily[0].Remaining, preparation.Daily[0].Testable));
+    }
+
+    [Fact]
+    public void Ignores_separators_and_code_blocks()
+    {
+        JournalDay day = JournalParser.Parse("""
+            ## Décisions de la réunion technique
+            - Garder .NET 10 · Qui : équipe · Pour quand : à préciser
+
+            * * *
+            ```
+            - pas une décision
+            ```
+            """);
+
+        Assert.Equal(["Garder .NET 10"], day.Decisions.Select(d => d.Decision));
+    }
+
+    [Fact]
+    public void Reads_a_preparation_written_one_heading_level_lower()
+    {
+        // Placed "just below the title", the preparation can come as a level 2 heading with level 3 sections.
+        JournalDay day = JournalParser.Parse("""
+            # Journal du 25/11/2026
+            ## Préparation du 25/11/2026
+            ### 📋 Daily (PO et testeurs)
+            - DEMO-101 Export · Fait : colonnes · Reste : tri · Testable : oui
+            ### Réunion technique
+            #### Points à soulever
+            - La base de test est pleine.
+            ## 09:10 · DEMO-101 · Export
+            - DEMO-101 Export · Fait : rien · Reste : tout
+            """);
+
+        Preparation preparation = Assert.IsType<Preparation>(day.Preparation);
+        Assert.Equal("DEMO-101", Assert.Single(preparation.Daily).Ticket);
+        Assert.Equal(["La base de test est pleine."], preparation.ToRaise);
+    }
+
+    [Fact]
     public void Keeps_a_daily_line_whose_fields_are_missing()
     {
         JournalDay day = JournalParser.Parse("""
