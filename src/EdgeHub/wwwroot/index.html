@@ -285,7 +285,8 @@ button.on { border-color: var(--accent); color: var(--accent); }
 .meet-daily { grid-area: daily; }
 .meet-tech { grid-area: tech; }
 .meet-dec { grid-area: dec; }
-.meet-empty { grid-area: 2 / 1 / 3 / 4; justify-content: center; align-items: center; text-align: center; gap: 10px; }
+/* Centré tant qu'il tient, sinon le haut reste visible et la tuile défile. */
+.meet-empty { grid-area: 2 / 1 / 3 / 4; justify-content: safe center; align-items: center; text-align: center; gap: 10px; overflow-y: auto; }
 .meet-empty-main { font-family: var(--font-display); font-weight: 600; font-size: clamp(20px, 4vh, 30px); color: var(--accent); }
 .meet-empty-sub { font-size: 14px; color: var(--muted); max-width: 60ch; }
 .meet-list { list-style: none; padding: 0; margin-top: 8px; overflow-y: auto; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
@@ -687,7 +688,13 @@ button.on { border-color: var(--accent); color: var(--accent); }
     $("nowForm").hidden = has; $("nowActs").hidden = !has;
     if (!has) { $("nowElapsed").textContent = ""; $("nowHint").textContent = ""; $("nowTile").classList.remove("long"); }
   }
+  // Une tâche venue de Claude Code part quand l'écran n'a plus vu sa session active depuis 10 minutes, que le PC
+  // réponde ou non (PC en veille le soir) : sinon elle resterait la nuit, avec ses rappels de pause.
+  function expireClaudeTask() {
+    if (cur && cur.claude && Date.now() - (cur.seen || cur.start) > 10 * 60 * 1000) { cur = null; store.set("now", null); renderNow(); }
+  }
   function tickNow() {
+    expireClaudeTask();
     if (!cur) return;
     const el = Date.now() - cur.start;
     $("nowElapsed").textContent = "Depuis " + fmtDur(el) + (cur.claude ? " · session Claude Code" : "");
@@ -741,10 +748,7 @@ button.on { border-color: var(--accent); color: var(--accent); }
       store.set("now", cur);
       return;
     }
-    if (cur && cur.claude && now - (cur.seen || cur.start) > 10 * 60 * 1000) {
-      // Sa session est finie depuis 10 minutes : la tâche s'en va, et avec elle les rappels de pause.
-      cur = null; store.set("now", null); renderNow();
-    }
+    expireClaudeTask();
     // Une autre tâche est en place (la mienne, ou celle d'une session encore récente), ou je tape la mienne.
     if (!live || cur || claudeDismissed.includes(key) || $("nowInput").value.trim() || document.activeElement === $("nowInput")) return;
     // Le temps part du moment où la tâche arrive ici : une session peut durer la journée, et le rappel de pause
