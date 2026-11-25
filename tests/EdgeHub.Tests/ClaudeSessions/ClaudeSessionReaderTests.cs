@@ -197,6 +197,16 @@ public sealed class ClaudeSessionReaderTests : IDisposable
     }
 
     [Fact]
+    public void A_broken_rename_file_never_stops_the_search()
+    {
+        _folder.Write("a1", Ago(1), [User(Ago(5)), AiTitle("Export"), Assistant(Ago(1))]);
+        string folder = Directory.CreateDirectory(Path.Combine(_folder.Root, "C--Users-demo-repo-bookshelf", "a1")).FullName;
+        File.WriteAllText(Path.Combine(folder, "custom-title.json"), """{"customTitle":"DEMO \ud83d"}""");
+
+        Assert.Equal("Export", Reader().FindActive()?.Name);
+    }
+
+    [Fact]
     public void Counts_a_file_edited_by_the_session_and_one_of_its_subagents_once()
     {
         _folder.Write("a1", Ago(1), [User(Ago(9)), Edited(Ago(8), @"C:\Users\demo\repo\bookshelf\Export.cs"), Assistant(Ago(1))]);

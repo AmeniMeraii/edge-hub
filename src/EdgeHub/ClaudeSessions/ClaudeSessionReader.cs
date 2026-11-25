@@ -45,7 +45,19 @@ public sealed partial class ClaudeSessionReader(IOptionsMonitor<ClaudeCodeOption
         {
             foreach (string main in Directory.EnumerateFiles(project, "*.jsonl"))
             {
-                if (Read(main, now) is { } session && (best is null || session.LastActivityAt > best.LastActivityAt))
+                ActiveSession? session;
+                try
+                {
+                    session = Read(main, now);
+                }
+                catch (Exception e) when (e is not OutOfMemoryException)
+                {
+                    // Whatever goes wrong with one session (its folder, its name file…), the others are still read.
+                    LogUnreadable(logger);
+                    continue;
+                }
+
+                if (session is not null && (best is null || session.LastActivityAt > best.LastActivityAt))
                 {
                     best = session;
                 }
@@ -142,8 +154,9 @@ public sealed partial class ClaudeSessionReader(IOptionsMonitor<ClaudeCodeOption
                 ? title.GetString()
                 : null;
         }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException)
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException or InvalidOperationException)
         {
+            // Half an emoji in the name is enough to make it unreadable: the session keeps its other names.
             return null;
         }
     }
