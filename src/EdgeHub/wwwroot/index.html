@@ -77,11 +77,13 @@ body {
 }
 
 /* Pages : on glisse de l'une à l'autre, les points en bas disent où l'on est */
-.pager { height: 100%; overflow: hidden; touch-action: pan-y; }
+/* Les listes qui défilent rétabliraient le glissement horizontal du navigateur et annuleraient le changement de page. */
+.pager, .pager * { touch-action: pan-y; }
+.pager { height: 100%; overflow: hidden; }
 .pages { display: flex; gap: 24px; height: 100%; transition: transform .35s ease; }
 .page { flex: 0 0 100%; min-width: 0; height: 100%; }
 .dots { position: fixed; left: 50%; bottom: max(0px, env(safe-area-inset-bottom)); transform: translateX(-50%); display: flex; z-index: 5; }
-.dots button { background: none; border: none; padding: 3px 7px; border-radius: 0; }
+.dots button { background: none; border: none; padding: 8px 10px; border-radius: 0; }
 .dots button::before { content: ""; display: block; width: 7px; height: 7px; border-radius: 50%; background: var(--line); }
 .dots button.on::before { background: var(--muted); }
 .grid {
@@ -288,6 +290,10 @@ button.on { border-color: var(--accent); color: var(--accent); }
 .meet-empty-sub { font-size: 14px; color: var(--muted); max-width: 60ch; }
 .meet-list { list-style: none; padding: 0; margin-top: 8px; overflow-y: auto; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
 .meet-tile-body { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; }
+/* Dans une tuile à plusieurs parties, c'est la tuile qui défile, pas chaque liste. */
+.meet-tile-body .meet-list, .meet-empty .meet-list { overflow: visible; }
+.meet-tile-body > * { flex-shrink: 0; }
+.meet-empty-dec { align-self: stretch; text-align: left; max-width: 70ch; margin: 8px auto 0; width: 100%; }
 .meet-list li { font-size: 14px; line-height: 1.35; padding-bottom: 8px; border-bottom: 1px solid #1c2430; overflow-wrap: anywhere; }
 .meet-list li:last-child { border-bottom: none; }
 .meet-list b { font-weight: 600; }
@@ -481,6 +487,10 @@ button.on { border-color: var(--accent); color: var(--accent); }
   <div class="tile meet-empty" id="meetEmpty" hidden>
     <div class="meet-empty-main" id="meetEmptyMain">Lance /prep-reunions dans Claude Code</div>
     <div class="meet-empty-sub" id="meetEmptySub"></div>
+    <div class="meet-empty-dec" id="emptyDec" hidden>
+      <div class="meet-sub">Décisions du jour</div>
+      <ul class="meet-list" id="emptyDecList"></ul>
+    </div>
   </div>
 </section>
 </div>
@@ -695,50 +705,75 @@ button.on { border-color: var(--accent); color: var(--accent); }
     try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); audio.resume && audio.resume(); } catch {}
     cur = { t: v, start: Date.now(), lastNudge: Date.now() }; $("nowInput").value = ""; store.set("now", cur); renderNow(); tickNow();
   });
-  // Une tâche venue de Claude Code que je termine ou remplace ne revient pas tant que dure sa session.
-  const dismissClaudeTask = () => { if (cur && cur.claude) { claudeDismissed = cur.claude; store.set("claudeDismissed", claudeDismissed); } };
   $("nowDone").onclick = () => {
     todos.push({ t: cur.t, d: true }); save();
     toast(`Bravo : « ${cur.t} » terminé en ${fmtDur(Date.now() - cur.start)}.`);
-    dismissClaudeTask(); cur = null; store.set("now", null); renderNow();
+    if (cur.claude) dismissClaude(cur.claude);
+    cur = null; store.set("now", null); renderNow();
   };
-  $("nowSwitch").onclick = () => { $("nowInput").value = cur.t; dismissClaudeTask(); cur = null; store.set("now", null); renderNow(); $("nowInput").focus(); };
+  $("nowSwitch").onclick = () => {
+    // Je choisis moi-même la suite : ni cette tâche ni la session en cours ne reviennent toutes seules.
+    if (cur.claude) dismissClaude(cur.claude);
+    if (claudeLive()) dismissClaude(claudeKey(claude));
+    $("nowInput").value = cur.t; cur = null; store.set("now", null); renderNow(); $("nowInput").focus();
+  };
 
   // ---------- Session Claude Code (lue par le PC) ----------
   // Le PC ne lit que les métadonnées de la session active : son nom (le ticket), sa branche, son début.
-  // Elle remplit « Une seule chose » quand je n'y ai rien mis moi-même ; une tâche tapée à la main n'est jamais remplacée.
-  let claude = null;
-  let claudeDismissed = store.get("claudeDismissed", null);
-  const claudeKey = c => `${c.name}@${c.startedAt}`;
+  // Elle remplit « Une seule chose » quand la tuile est vide et que je n'y tape rien ; une tâche tapée à la main n'est
+  // jamais remplacée. Une session se reconnaît à son début, pas à son nom : renommée, elle garde sa tâche et son temps.
+  let claude = null, claudeAt = 0;
+  let claudeDismissed = [].concat(store.get("claudeDismissed", []) || []).filter(k => typeof k === "string").slice(-10);
+  const claudeKey = c => c.startedAt || c.name;
+  // Une réponse de plus de 90 s (PC injoignable, jeton refusé) ou une session muette depuis 15 min ne compte plus.
+  const claudeLive = () => !!(claude && claude.active && claude.name && Date.now() - claudeAt < 90 * 1000
+    && !(Date.now() - Date.parse(claude.lastActivityAt) > 15 * 60 * 1000));
+  function dismissClaude(key) {
+    if (!key || claudeDismissed.includes(key)) return;
+    claudeDismissed = [...claudeDismissed, key].slice(-10); store.set("claudeDismissed", claudeDismissed);
+  }
   function applyClaudeTask() {
-    if (!claude || !claude.active || !claude.name) return;
-    const key = claudeKey(claude);
-    if (claudeDismissed === key || (cur && !cur.claude) || (cur && cur.claude === key)) return;
+    const now = Date.now(), live = claudeLive(), key = live ? claudeKey(claude) : null;
+    if (cur && cur.claude && cur.claude === key) {
+      // Sa session est toujours là : elle peut avoir été renommée (dossier, titre généré, puis /rename).
+      cur.seen = now;
+      if (cur.t !== claude.name) { cur.t = claude.name; renderNow(); }
+      store.set("now", cur);
+      return;
+    }
+    if (cur && cur.claude && now - (cur.seen || cur.start) > 10 * 60 * 1000) {
+      // Sa session est finie depuis 10 minutes : la tâche s'en va, et avec elle les rappels de pause.
+      cur = null; store.set("now", null); renderNow();
+    }
+    // Une autre tâche est en place (la mienne, ou celle d'une session encore récente), ou je tape la mienne.
+    if (!live || cur || claudeDismissed.includes(key) || $("nowInput").value.trim() || document.activeElement === $("nowInput")) return;
     // Le temps part du moment où la tâche arrive ici : une session peut durer la journée, et le rappel de pause
     // sonnerait alors dès l'ouverture de l'écran. La page Réunions donne, elle, la durée de la session.
-    cur = { t: claude.name, start: Date.now(), lastNudge: Date.now(), claude: key };
+    cur = { t: claude.name, start: now, lastNudge: now, claude: key, seen: now };
     store.set("now", cur); renderNow(); tickNow();
   }
   async function refreshClaude() {
     try {
       const response = await fetch("/api/claude/current", { cache: "no-store" });
-      if (response.ok) { claude = await response.json(); applyClaudeTask(); }
+      if (response.ok) { claude = await response.json(); claudeAt = Date.now(); applyClaudeTask(); }
     } catch {}
     renderSession();
   }
   function renderSession() {
     const name = $("sessionName"), meta = $("sessionMeta");
-    const active = claude && claude.active;
-    name.classList.toggle("empty", !active);
-    if (!claude) { name.textContent = "Session Claude Code : en attente du PC"; meta.textContent = ""; return; }
-    if (!claude.configured) { name.textContent = "Sessions Claude Code non reliées au PC (réglage ClaudeCode:ProjectsFolder)."; meta.textContent = ""; return; }
-    if (!active) { name.textContent = "Aucune session Claude Code active"; meta.textContent = ""; return; }
+    const live = claudeLive();
+    name.classList.toggle("empty", !live);
+    meta.textContent = "";
+    if (!claude) { name.textContent = "Session Claude Code : en attente du PC"; return; }
+    if (Date.now() - claudeAt >= 90 * 1000) { name.textContent = `Session Claude Code : pas de nouvelles du PC depuis ${hhmm(new Date(claudeAt))}`; return; }
+    if (!claude.configured) { name.textContent = "Sessions Claude Code non reliées au PC (réglage ClaudeCode:ProjectsFolder)."; return; }
+    if (!live) { name.textContent = "Aucune session Claude Code active"; return; }
     name.textContent = claude.name;
     const parts = [];
     if (claude.branch) parts.push(`branche ${claude.branch}`);
     const start = Date.parse(claude.startedAt);
     if (!Number.isNaN(start)) parts.push(`depuis ${fmtDur(Date.now() - start)}`);
-    parts.push(claude.editedFiles === 1 ? "1 fichier modifié" : `${claude.editedFiles} fichiers modifiés`);
+    parts.push(claude.editedFiles > 1 ? `${claude.editedFiles} fichiers modifiés` : `${claude.editedFiles} fichier modifié`);
     meta.textContent = parts.join(" · ");
   }
 
@@ -769,7 +804,11 @@ button.on { border-color: var(--accent); color: var(--accent); }
     else status = "";
     if (journalProblem) status = today ? `${journalProblem} : dernières infos du jour affichées` : journalProblem;
     $("journalStatus").textContent = status;
+    const decisions = today ? today.decisions : [];
+    $("emptyDec").hidden = !!prep || !decisions.length;
     if (!prep) {
+      // Sans préparation, les décisions du jour (/decisions) restent visibles sous le message.
+      fill($("emptyDecList"), decisions, decisionItem);
       let main = "Lance /prep-reunions dans Claude Code", sub = "";
       if (journal && !journal.configured) { main = "Journal non relié au PC"; sub = "Réglage Journal:Folder dans la configuration du PC."; }
       else if (today && !today.available) { main = "Journal illisible pour le moment"; sub = "Le PC le relira à la prochaine demande."; }
@@ -802,28 +841,31 @@ button.on { border-color: var(--accent); color: var(--accent); }
       if (label) li.append(el("span", `state ${d.status}`, label));
       return li;
     });
-    $("todayDecHead").hidden = !today.decisions.length;
-    fill($("todayDecList"), today.decisions, d => {
-      const li = el("li", null, d.decision);
-      const meta = [d.who ? `Qui : ${d.who}` : null, d.when ? `Pour quand : ${d.when}` : null].filter(Boolean).join(" · ");
-      if (meta) li.append(el("div", "decision-meta", meta));
-      return li;
-    });
+    $("todayDecHead").hidden = !decisions.length;
+    fill($("todayDecList"), decisions, decisionItem);
+  }
+  function decisionItem(d) {
+    const li = el("li", null, d.decision);
+    const meta = [d.who ? `Qui : ${d.who}` : null, d.when ? `Pour quand : ${d.when}` : null].filter(Boolean).join(" · ");
+    if (meta) li.append(el("div", "decision-meta", meta));
+    return li;
   }
   async function refreshMeetings() {
-    journalProblem = null;
+    // Le problème de la requête précédente reste affiché tant que celle-ci n'a pas répondu.
+    let problem = null;
     try {
       const response = await fetch("/api/journal/today", { cache: "no-store" });
-      if (response.status === 401) journalProblem = "Jeton refusé (rouvre l'adresse complète avec ?k=…)";
-      else if (!response.ok) journalProblem = "Le PC a répondu par une erreur";
+      if (response.status === 401) problem = "Jeton refusé (rouvre l'adresse complète avec ?k=…)";
+      else if (!response.ok) problem = "Le PC a répondu par une erreur";
       else journal = await response.json();
-    } catch { journalProblem = "PC injoignable"; }
+    } catch { problem = "PC injoignable"; }
+    journalProblem = problem;
     renderMeetings();
   }
 
   // ---------- Pages ----------
-  // Glisser à gauche ou à droite, ou toucher un point. Pendant un focus, ou juste avant une séance, l'écran revient
-  // seul à la page Focus après une minute sans que je le touche.
+  // Glisser à gauche ou à droite, ou toucher un point. Pendant un focus, ou dans les 30 minutes avant une séance,
+  // l'écran revient seul à la page Focus après une minute sans que je le touche.
   const pageCount = 2;
   let page = Math.min(pageCount - 1, Math.max(0, +store.get("page", 0) || 0)), lastTouch = Date.now();
   function showPage(i) {
@@ -850,10 +892,16 @@ button.on { border-color: var(--accent); color: var(--accent); }
   });
   function tickPage() {
     const sb = $("sport").classList;
-    const needed = (endAt && !isBreak) || sb.contains("soon") || sb.contains("now");
+    const needed = (endAt && !isBreak) || sb.contains("soon");
     if (page !== 0 && needed && Date.now() - lastTouch > 60 * 1000) showPage(0);
   }
-  function checkPageHash() { if (location.hash === "#reunions") showPage(1); else if (location.hash === "#focus") showPage(0); }
+  // #reunions ou #focus choisit la page une fois, puis s'efface : au rechargement, la page mémorisée reprend.
+  function checkPageHash() {
+    const target = { "#reunions": 1, "#focus": 0 }[location.hash];
+    if (target === undefined) return;
+    showPage(target);
+    history.replaceState(null, "", location.pathname + location.search);
+  }
 
   // ---------- Idées ----------
   let ideas = store.get("ideas", [{ t: "Exemple : tester le cache Redis sur l'export", at: "14:32" }]);
@@ -1083,7 +1131,12 @@ button.on { border-color: var(--accent); color: var(--accent); }
   connectLive();
 
   // ---------- Boucle ----------
-  function loop() { const now = new Date(); tickClock(now); tickDay(now); tickFocus(); tickNow(); tickSport(now); tickBuddy(now); tickLive(); tickPage(); if (now.getSeconds() === 0) { tickNext(now); renderSession(); renderMeetings(); } }
+  let lastMinute = -1;
+  function loop() {
+    const now = new Date(); tickClock(now); tickDay(now); tickFocus(); tickNow(); tickSport(now); tickBuddy(now); tickLive(); tickPage();
+    // Une fois par minute, pas à chaque passage de la seconde 0.
+    if (now.getMinutes() !== lastMinute) { lastMinute = now.getMinutes(); tickNext(now); renderSession(); renderMeetings(); }
+  }
   renderHoursBtn(); renderCount(); renderTodos(); renderRemind(); renderNow(); renderIdeas(); setMode(25, false); showPage(page); checkPageHash(); loop();
   refreshCalendar(); setInterval(refreshCalendar, 60 * 1000);
   refreshMeetings(); setInterval(refreshMeetings, 30 * 1000);
