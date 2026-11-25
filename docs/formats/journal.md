@@ -100,10 +100,11 @@ Without a file for the day, or without a preparation in it, the page says « Lan
 The blocks are written by a model, so the reader:
 
 - matches headings by their start, whatever the case, the accents and a symbol in front (`## daily`, `## Réunion Technique`, `### 📋 Daily`, `### Suivi des décisions`, `### Points à soulever`);
-- accepts a preparation written one level lower (`## Préparation du …` with `###` sections, as « just below the title » can be read); it ends at the next heading of its own level, or at an unknown section;
+- accepts a preparation written one level lower (`## Préparation du …`, as « just below the title » can be read), with its sections one level below it or at its own level. It ends at a heading of its level or above that is not one of its sections, at a report (`## 09:10 · …`), or at the day's decisions written at its sections' level; an unknown heading inside it only opens no section;
+- keeps a heading deeper than its section inside that section: a ticket written as a heading (`### DEMO-101 Export`) with its fields as bullets below it is one daily line, or one technical choice, and a heading inside the day's decisions only groups them;
 - accepts `-`, `*`, `+` and numbered bullets, `·` or `•` between fields, any space before `:` (French typography uses a no-break space), and `→`, `->` or `=>` before a state, in bold or after a symbol (`→ **appliquée**`, `→ ✅ en cours`);
-- reads a nested bullet as the continuation of the item above it, so a ticket whose fields come as sub-bullets stays one daily line;
-- ignores separators (`* * *`) and anything inside a code block;
+- reads a bullet more indented than the one above it as its continuation, so a ticket whose fields come as sub-bullets stays one daily line; under « À soulever », each sub-bullet stays its own point, and a line that only introduces them (« Questions et blocages : ») is dropped;
+- ignores separators (`* * *`) and anything inside a code block; a code block never closed hides nothing;
 - keeps a state it does not know as written (`→ abandonnée`), and a line whose fields are missing;
 - skips anything else, so a missing section gives an empty list, never an error;
 - reads the file again only when its write time or size changes, and refuses a file over 1 MB.
