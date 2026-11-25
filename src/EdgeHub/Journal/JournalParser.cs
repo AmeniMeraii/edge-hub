@@ -64,7 +64,9 @@ public static partial class JournalParser
 
             string entry = bullet.Groups["item"].Value.Trim();
             int indent = bullet.Groups["indent"].Value.Replace("\t", "    ", StringComparison.Ordinal).Length;
-            if (parent is not null && parent.Zone == cursor.Zone && indent > parent.Indent)
+            // Under a ticket written as a heading, only its fields join it: another ticket's line stays a line.
+            bool joins = !(parent is { FromHeading: true, Zone: Zone.Daily } && !DailyField().IsMatch(entry));
+            if (parent is not null && parent.Zone == cursor.Zone && indent > parent.Indent && joins)
             {
                 if (cursor.Zone == Zone.ToRaise)
                 {
@@ -182,7 +184,7 @@ public static partial class JournalParser
                 }
             }
 
-            if (Zone == Zone.Decisions && level > _sectionLevel && !title.StartsWith("preparation", StringComparison.Ordinal))
+            if (Zone == Zone.Decisions && level > _sectionLevel && !title.StartsWith("preparation", StringComparison.Ordinal) && !Report().IsMatch(title))
             {
                 // A heading inside the day's decisions groups some of them.
                 return;
@@ -205,7 +207,7 @@ public static partial class JournalParser
         private void InPreparation(int level, string title)
         {
             bool leaf = Zone is Zone.Daily or Zone.FollowUps or Zone.TechnicalPoints or Zone.ToRaise;
-            if (leaf && level > _sectionLevel)
+            if (leaf && level > _sectionLevel && Section(title) is null)
             {
                 HeadingIsItem = Zone is Zone.Daily or Zone.TechnicalPoints;
                 return;
@@ -362,4 +364,8 @@ public static partial class JournalParser
 
     [GeneratedRegex(@"\s+")]
     private static partial Regex Spaces();
+
+    /// <summary>A field of a daily line written on its own: « Fait : … », « **Reste** : … ».</summary>
+    [GeneratedRegex(@"^\**\s*(?:fait|reste|testable)\s*\**\s*:", RegexOptions.IgnoreCase)]
+    private static partial Regex DailyField();
 }

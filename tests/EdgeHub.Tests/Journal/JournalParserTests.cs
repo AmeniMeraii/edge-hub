@@ -377,6 +377,52 @@ public sealed class JournalParserTests
     }
 
     [Fact]
+    public void Takes_a_known_section_written_too_deep_as_a_section_not_a_ticket()
+    {
+        JournalDay day = JournalParser.Parse("""
+            # Préparation du 25/11/2026
+            ## Daily (PO et testeurs)
+            - DEMO-101 Export · Fait : colonnes · Reste : tri · Testable : oui
+            ### Réunion technique
+            #### Suivi des décisions précédentes
+            - Paginer → appliquée
+            """);
+
+        Preparation preparation = Assert.IsType<Preparation>(day.Preparation);
+        Assert.Equal("DEMO-101", Assert.Single(preparation.Daily).Ticket);
+        Assert.Equal(DecisionStatus.Applied, Assert.Single(preparation.FollowUps).Status);
+    }
+
+    [Fact]
+    public void Joins_only_fields_to_a_ticket_written_as_a_heading()
+    {
+        JournalDay day = JournalParser.Parse("""
+            # Préparation du 25/11/2026
+            ## Daily (PO et testeurs)
+            ### DEMO-101 Export
+            - Fait : colonnes
+            - DEMO-102 Recherche · Fait : index · Reste : tests · Testable : non
+            """);
+
+        Preparation preparation = Assert.IsType<Preparation>(day.Preparation);
+        Assert.Equal(["DEMO-101", "DEMO-102"], preparation.Daily.Select(l => l.Ticket));
+        Assert.Equal(("colonnes", (string?)null), (preparation.Daily[0].Done, preparation.Daily[0].Remaining));
+    }
+
+    [Fact]
+    public void A_report_below_the_days_decisions_is_not_one_of_them()
+    {
+        JournalDay day = JournalParser.Parse("""
+            ## Décisions de la réunion technique
+            - Garder .NET 10 · Qui : équipe · Pour quand : à préciser
+            ### 14:00 · DEMO-102 · Recherche
+            - DEMO-102 Recherche · Fait : index · Reste : tests
+            """);
+
+        Assert.Equal("Garder .NET 10", Assert.Single(day.Decisions).Decision);
+    }
+
+    [Fact]
     public void Keeps_a_daily_line_whose_fields_are_missing()
     {
         JournalDay day = JournalParser.Parse("""
