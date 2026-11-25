@@ -77,6 +77,22 @@ public sealed class JournalTodayTests : IDisposable
     }
 
     [Fact]
+    public async Task Does_not_read_a_file_again_while_its_time_and_size_stay_the_same()
+    {
+        File.Copy(Demo, Today);
+        DateTime written = File.GetLastWriteTimeUtc(Today);
+        JournalToday journal = Journal();
+        Assert.NotNull((await journal.GetAsync(Ct)).Preparation);
+
+        // Same size and same write time: the file is taken as unchanged.
+        string text = await File.ReadAllTextAsync(Today, Ct);
+        await File.WriteAllTextAsync(Today, text.Replace("# Préparation du", "# Préparatiox du", StringComparison.Ordinal), Ct);
+        File.SetLastWriteTimeUtc(Today, written);
+
+        Assert.NotNull((await journal.GetAsync(Ct)).Preparation);
+    }
+
+    [Fact]
     public async Task Moves_to_the_next_file_at_midnight()
     {
         File.Copy(Demo, Today);

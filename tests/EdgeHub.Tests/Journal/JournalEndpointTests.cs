@@ -50,7 +50,7 @@ public sealed class JournalEndpointTests
         DirectoryInfo folder = Directory.CreateTempSubdirectory("edgehub-journal-");
         try
         {
-            string today = DateTime.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+            string today = TimeProvider.System.GetLocalNow().ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
             File.Copy(Path.Combine(AppContext.BaseDirectory, "Fixtures", "journal", "2026-11-25.md"), Path.Combine(folder.FullName, today + ".md"));
             await using var factory = new JournalFactory(folder.FullName);
 
