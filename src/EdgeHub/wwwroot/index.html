@@ -75,6 +75,17 @@ body {
   padding: max(10px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
   overflow: hidden;
 }
+
+/* Pages : on glisse de l'une à l'autre, les points en bas disent où l'on est */
+/* Les listes qui défilent rétabliraient le glissement horizontal du navigateur et annuleraient le changement de page. */
+.pager, .pager * { touch-action: pan-y; }
+.pager { height: 100%; overflow: hidden; }
+.pages { display: flex; gap: 24px; height: 100%; transition: transform .35s ease; }
+.page { flex: 0 0 100%; min-width: 0; height: 100%; }
+.dots { position: fixed; left: 50%; bottom: max(0px, env(safe-area-inset-bottom)); transform: translateX(-50%); display: flex; z-index: 5; }
+.dots button { background: none; border: none; padding: 8px 10px; border-radius: 0; }
+.dots button::before { content: ""; display: block; width: 7px; height: 7px; border-radius: 50%; background: var(--line); }
+.dots button.on::before { background: var(--muted); }
 .grid {
   height: 100%;
   display: grid;
@@ -258,6 +269,46 @@ button.on { border-color: var(--accent); color: var(--accent); }
   background: #0f141c; border: 1px solid var(--line); border-radius: 9px; padding: 6px 9px;
 }
 
+/* Page Réunions */
+.meet {
+  display: grid; gap: 10px;
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas: "head head head" "daily tech dec";
+}
+.meet-head { grid-area: head; flex-direction: row; align-items: center; gap: 16px; }
+.meet-head .session { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.session-name { font-family: var(--font-display); font-weight: 600; font-size: clamp(18px, 3.6vh, 28px); line-height: 1.15; overflow-wrap: anywhere; }
+.session-name.empty { font-family: var(--font-body); font-weight: 400; font-size: 15px; color: var(--muted); }
+.session-meta, .journal-status { font-size: 13px; color: var(--muted); }
+.journal-status { text-align: right; max-width: 40%; }
+.meet-daily { grid-area: daily; }
+.meet-tech { grid-area: tech; }
+.meet-dec { grid-area: dec; }
+/* Centré tant qu'il tient, sinon le haut reste visible et la tuile défile. */
+.meet-empty { grid-area: 2 / 1 / 3 / 4; justify-content: safe center; align-items: center; text-align: center; gap: 10px; overflow-y: auto; }
+.meet-empty-main { font-family: var(--font-display); font-weight: 600; font-size: clamp(20px, 4vh, 30px); color: var(--accent); }
+.meet-empty-sub { font-size: 14px; color: var(--muted); max-width: 60ch; }
+.meet-list { list-style: none; padding: 0; margin-top: 8px; overflow-y: auto; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+.meet-tile-body { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; }
+/* Dans une tuile à plusieurs parties, c'est la tuile qui défile, pas chaque liste. */
+.meet-tile-body .meet-list, .meet-empty .meet-list { overflow: visible; }
+.meet-tile-body > * { flex-shrink: 0; }
+.meet-empty-dec { align-self: stretch; text-align: left; max-width: 70ch; margin: 8px auto 0; width: 100%; }
+.meet-list li { font-size: 14px; line-height: 1.35; padding-bottom: 8px; border-bottom: 1px solid #1c2430; overflow-wrap: anywhere; }
+.meet-list li:last-child { border-bottom: none; }
+.meet-list b { font-weight: 600; }
+.meet-sub { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-top: 12px; }
+.meet-sub.raise, .meet-list.raise li { color: var(--focus); }
+.field { display: flex; gap: 8px; font-size: 13px; }
+.field .k { color: var(--muted); flex: none; min-width: 5.5em; }
+.field .v.tbd, .meet-list .tbd { color: var(--muted); font-style: italic; }
+.state { display: inline-block; font-size: 11px; border-radius: 99px; padding: 1px 8px; margin-left: 6px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.state.applied { color: var(--ok); border-color: var(--ok); }
+.state.inProgress { color: var(--accent); border-color: var(--accent); }
+.state.notStarted { color: var(--focus); border-color: var(--focus); }
+.decision-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
 /* Petits écrans en paysage (téléphone) : 4 widgets, les deux autres sont masqués */
 @media (orientation: landscape) and (max-height: 599px) {
   .now, .ideas { display: none; }
@@ -265,6 +316,8 @@ button.on { border-color: var(--accent); color: var(--accent); }
 /* Tablette en paysage : 6 widgets sur 3 colonnes et 2 rangées */
 @media (orientation: landscape) and (min-height: 600px) {
   .grid { grid-template-columns: 1.3fr 1fr 1fr; grid-template-areas: "clock focus todo" "now ideas day"; gap: 14px; }
+  .meet { gap: 14px; }
+  .meet-list li { font-size: 15px; }
   .tile { padding: 16px 18px; border-radius: 16px; }
   .label { font-size: 12px; }
   .time { font-size: clamp(80px, 17vh, 190px); }
@@ -275,9 +328,14 @@ button.on { border-color: var(--accent); color: var(--accent); }
 
 /* Portrait : on empile et on autorise le défilement */
 @media (orientation: portrait) {
-  body { overflow-y: auto; }
-  .grid { height: auto; grid-template-columns: 1fr; grid-template-rows: none;
+  /* Chaque page défile seule. */
+  .page { overflow-y: auto; }
+  .grid { align-content: start; grid-template-columns: 1fr; grid-template-rows: none; grid-auto-rows: max-content;
     grid-template-areas: "clock" "now" "focus" "todo" "ideas" "day"; }
+  .meet { align-content: start; grid-template-columns: 1fr; grid-template-rows: none; grid-auto-rows: max-content; grid-template-areas: "head" "daily" "tech" "dec"; }
+  .meet-empty { grid-area: auto; min-height: 220px; }
+  .meet-head { flex-direction: column; align-items: stretch; }
+  .journal-status { text-align: left; max-width: none; }
   .ideas { min-height: 220px; }
   .time { font-size: clamp(64px, 24vw, 120px); }
   .focus .ring-wrap { height: 220px; flex: none; }
@@ -287,7 +345,9 @@ button.on { border-color: var(--accent); color: var(--accent); }
 </style>
 </head>
 <body>
-<main class="grid">
+<div class="pager" id="pager">
+<div class="pages" id="pages">
+<main class="grid page" id="pageFocus" aria-label="Focus">
 
   <section class="tile clock" aria-label="Horloge">
     <div class="label"><span>Heure · Paris</span><span id="week"></span></div>
@@ -394,6 +454,52 @@ button.on { border-color: var(--accent); color: var(--accent); }
   </section>
 
 </main>
+
+<section class="meet page" id="pageMeet" aria-label="Réunions">
+  <div class="tile meet-head">
+    <div class="session">
+      <div class="label"><span>Claude Code</span></div>
+      <div class="session-name empty" id="sessionName">Aucune session Claude Code active</div>
+      <div class="session-meta" id="sessionMeta"></div>
+    </div>
+    <div class="journal-status" id="journalStatus">Lecture du journal…</div>
+  </div>
+  <section class="tile meet-daily" id="meetDaily" aria-label="Daily">
+    <div class="label"><span>Daily</span><span id="dailyCount"></span></div>
+    <ul class="meet-list" id="dailyList"></ul>
+  </section>
+  <section class="tile meet-tech" id="meetTech" aria-label="Réunion technique">
+    <div class="label"><span>Réunion technique</span></div>
+    <div class="meet-tile-body">
+      <div class="meet-sub">À expliquer</div>
+      <ul class="meet-list" id="techList"></ul>
+      <div class="meet-sub raise">À soulever</div>
+      <ul class="meet-list raise" id="raiseList"></ul>
+    </div>
+  </section>
+  <section class="tile meet-dec" id="meetDec" aria-label="Décisions">
+    <div class="label"><span>Décisions d'hier</span></div>
+    <div class="meet-tile-body">
+      <ul class="meet-list" id="followList"></ul>
+      <div class="meet-sub" id="todayDecHead" hidden>Décisions du jour</div>
+      <ul class="meet-list" id="todayDecList"></ul>
+    </div>
+  </section>
+  <div class="tile meet-empty" id="meetEmpty" hidden>
+    <div class="meet-empty-main" id="meetEmptyMain">Lance /prep-reunions dans Claude Code</div>
+    <div class="meet-empty-sub" id="meetEmptySub"></div>
+    <div class="meet-empty-dec" id="emptyDec" hidden>
+      <div class="meet-sub">Décisions du jour</div>
+      <ul class="meet-list" id="emptyDecList"></ul>
+    </div>
+  </div>
+</section>
+</div>
+</div>
+<nav class="dots" id="dots" aria-label="Pages">
+  <button type="button" data-page="0" aria-label="Page Focus"></button>
+  <button type="button" data-page="1" aria-label="Page Réunions"></button>
+</nav>
 <div class="cc-card" id="ccCard" role="alertdialog" aria-labelledby="ccHead">
   <div class="buddy" id="ccBuddy" role="img" aria-label="Mascotte">
         <svg viewBox="0 0 100 100" aria-hidden="true">
@@ -582,10 +688,16 @@ button.on { border-color: var(--accent); color: var(--accent); }
     $("nowForm").hidden = has; $("nowActs").hidden = !has;
     if (!has) { $("nowElapsed").textContent = ""; $("nowHint").textContent = ""; $("nowTile").classList.remove("long"); }
   }
+  // Une tâche venue de Claude Code part quand l'écran n'a plus vu sa session active depuis 10 minutes, que le PC
+  // réponde ou non (PC en veille le soir) : sinon elle resterait la nuit, avec ses rappels de pause.
+  function expireClaudeTask() {
+    if (cur && cur.claude && Date.now() - (cur.seen || cur.start) > 10 * 60 * 1000) { cur = null; store.set("now", null); renderNow(); }
+  }
   function tickNow() {
+    expireClaudeTask();
     if (!cur) return;
     const el = Date.now() - cur.start;
-    $("nowElapsed").textContent = "Depuis " + fmtDur(el);
+    $("nowElapsed").textContent = "Depuis " + fmtDur(el) + (cur.claude ? " · session Claude Code" : "");
     const v = remindOpts[remindIdx];
     const long = v && el >= v * 60000;
     $("nowTile").classList.toggle("long", !!long);
@@ -603,9 +715,197 @@ button.on { border-color: var(--accent); color: var(--accent); }
   $("nowDone").onclick = () => {
     todos.push({ t: cur.t, d: true }); save();
     toast(`Bravo : « ${cur.t} » terminé en ${fmtDur(Date.now() - cur.start)}.`);
+    if (cur.claude) dismissClaude(cur.claude);
     cur = null; store.set("now", null); renderNow();
   };
-  $("nowSwitch").onclick = () => { $("nowInput").value = cur.t; cur = null; store.set("now", null); renderNow(); $("nowInput").focus(); };
+  $("nowSwitch").onclick = () => {
+    // Je choisis moi-même la suite : ni cette tâche ni la session en cours ne reviennent toutes seules.
+    if (cur.claude) dismissClaude(cur.claude);
+    if (claudeLive()) dismissClaude(claudeKey(claude));
+    $("nowInput").value = cur.t; cur = null; store.set("now", null); renderNow(); $("nowInput").focus();
+  };
+
+  // ---------- Session Claude Code (lue par le PC) ----------
+  // Le PC ne lit que les métadonnées de la session active : son nom (le ticket), sa branche, son début.
+  // Elle remplit « Une seule chose » quand la tuile est vide et que je n'y tape rien ; une tâche tapée à la main n'est
+  // jamais remplacée. Une session se reconnaît à son début, pas à son nom : renommée, elle garde sa tâche et son temps.
+  let claude = null, claudeAt = 0;
+  let claudeDismissed = [].concat(store.get("claudeDismissed", []) || []).filter(k => typeof k === "string").slice(-10);
+  const claudeKey = c => c.startedAt || c.name;
+  // Une réponse de plus de 90 s (PC injoignable, jeton refusé) ou une session muette depuis 15 min ne compte plus.
+  const claudeLive = () => !!(claude && claude.active && claude.name && Date.now() - claudeAt < 90 * 1000
+    && !(Date.now() - Date.parse(claude.lastActivityAt) > 15 * 60 * 1000));
+  function dismissClaude(key) {
+    if (!key || claudeDismissed.includes(key)) return;
+    claudeDismissed = [...claudeDismissed, key].slice(-10); store.set("claudeDismissed", claudeDismissed);
+  }
+  function applyClaudeTask() {
+    const now = Date.now(), live = claudeLive(), key = live ? claudeKey(claude) : null;
+    if (cur && cur.claude && cur.claude === key) {
+      // Sa session est toujours là : elle peut avoir été renommée (dossier, titre généré, puis /rename).
+      cur.seen = now;
+      if (cur.t !== claude.name) { cur.t = claude.name; renderNow(); }
+      store.set("now", cur);
+      return;
+    }
+    expireClaudeTask();
+    // Une autre tâche est en place (la mienne, ou celle d'une session encore récente), ou je tape la mienne.
+    if (!live || cur || claudeDismissed.includes(key) || $("nowInput").value.trim() || document.activeElement === $("nowInput")) return;
+    // Le temps part du moment où la tâche arrive ici : une session peut durer la journée, et le rappel de pause
+    // sonnerait alors dès l'ouverture de l'écran. La page Réunions donne, elle, la durée de la session.
+    cur = { t: claude.name, start: now, lastNudge: now, claude: key, seen: now };
+    store.set("now", cur); renderNow(); tickNow();
+  }
+  async function refreshClaude() {
+    try {
+      const response = await fetch("/api/claude/current", { cache: "no-store" });
+      if (response.ok) { claude = await response.json(); claudeAt = Date.now(); applyClaudeTask(); }
+    } catch {}
+    renderSession();
+  }
+  function renderSession() {
+    const name = $("sessionName"), meta = $("sessionMeta");
+    const live = claudeLive();
+    name.classList.toggle("empty", !live);
+    meta.textContent = "";
+    if (!claude) { name.textContent = "Session Claude Code : en attente du PC"; return; }
+    if (Date.now() - claudeAt >= 90 * 1000) { name.textContent = `Session Claude Code : pas de nouvelles du PC depuis ${hhmm(new Date(claudeAt))}`; return; }
+    if (!claude.configured) { name.textContent = "Sessions Claude Code non reliées au PC (réglage ClaudeCode:ProjectsFolder)."; return; }
+    if (!live) { name.textContent = "Aucune session Claude Code active"; return; }
+    name.textContent = claude.name;
+    const parts = [];
+    if (claude.branch) parts.push(`branche ${claude.branch}`);
+    const start = Date.parse(claude.startedAt);
+    if (!Number.isNaN(start)) parts.push(`depuis ${fmtDur(Date.now() - start)}`);
+    parts.push(claude.editedFiles > 1 ? `${claude.editedFiles} fichiers modifiés` : `${claude.editedFiles} fichier modifié`);
+    meta.textContent = parts.join(" · ");
+  }
+
+  // ---------- Réunions (journal lu par le PC) ----------
+  // Le fichier du jour est écrit par /prep-reunions, /rapport et /decisions ; le PC le relit dès qu'il change.
+  // Les données gardent leur jour, comme l'agenda : celles de la veille ne restent pas affichées.
+  let journal = null, journalProblem = null;
+  const journalToday = () => (journal && journal.day === todayKey() ? journal : null);
+  const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
+  const STATES = { applied: "appliquée", inProgress: "en cours", notStarted: "pas commencée" };
+  function field(key, value) {
+    const row = el("div", "field");
+    const v = el("span", "v", value || "à compléter");
+    if (!value || /^à compléter/i.test(value)) v.classList.add("tbd");
+    row.append(el("span", "k", key), v);
+    return row;
+  }
+  function fill(list, items, render) { list.innerHTML = ""; items.forEach(it => list.append(render(it))); }
+  function renderMeetings() {
+    const today = journalToday();
+    const prep = today && today.preparation;
+    ["meetDaily", "meetTech", "meetDec"].forEach(id => $(id).hidden = !prep);
+    $("meetEmpty").hidden = !!prep;
+    let status;
+    if (!journal && !journalProblem) status = "Lecture du journal…";
+    else if (journal && !journal.configured) status = "Journal non relié au PC";
+    else if (today && today.writtenAt) status = `Journal mis à jour à ${hhmm(new Date(today.writtenAt))}`;
+    else status = "";
+    if (journalProblem) status = today ? `${journalProblem} : dernières infos du jour affichées` : journalProblem;
+    $("journalStatus").textContent = status;
+    const decisions = today ? today.decisions : [];
+    $("emptyDec").hidden = !!prep || !decisions.length;
+    if (!prep) {
+      // Sans préparation, les décisions du jour (/decisions) restent visibles sous le message.
+      fill($("emptyDecList"), decisions, decisionItem);
+      let main = "Lance /prep-reunions dans Claude Code", sub = "";
+      if (journal && !journal.configured) { main = "Journal non relié au PC"; sub = "Réglage Journal:Folder dans la configuration du PC."; }
+      else if (today && !today.available) { main = "Journal illisible pour le moment"; sub = "Le PC le relira à la prochaine demande."; }
+      else if (today && today.found) sub = "Le journal du jour n'a pas encore de préparation.";
+      else if (!today && journalProblem) { main = journalProblem; sub = "La page se remplira dès que le PC répondra."; }
+      $("meetEmptyMain").textContent = main; $("meetEmptySub").textContent = sub;
+      return;
+    }
+    $("dailyCount").textContent = prep.daily.length ? `${prep.daily.length} ticket${prep.daily.length > 1 ? "s" : ""}` : "";
+    fill($("dailyList"), prep.daily.length ? prep.daily : [null], line => {
+      const li = el("li");
+      if (!line) { li.append(el("span", "tbd", "Aucun ticket dans la préparation.")); return li; }
+      const head = el("div"); head.append(el("b", null, line.ticket), document.createTextNode(line.title ? ` ${line.title}` : ""));
+      li.append(head, field("Fait", line.done), field("Reste", line.remaining), field("Testable", line.testable));
+      return li;
+    });
+    fill($("techList"), prep.technicalPoints.length ? prep.technicalPoints : [null], point => {
+      const li = el("li");
+      if (!point) { li.append(el("span", "tbd", "Rien à expliquer.")); return li; }
+      if (point.ticket) li.append(el("b", null, point.ticket), document.createTextNode(" : "));
+      li.append(document.createTextNode(point.text));
+      return li;
+    });
+    fill($("raiseList"), prep.toRaise.length ? prep.toRaise : ["Rien à soulever."], text => el("li", null, text));
+    fill($("followList"), prep.followUps.length ? prep.followUps : [null], d => {
+      const li = el("li");
+      if (!d) { li.append(el("span", "tbd", "Pas de décision à suivre.")); return li; }
+      li.append(document.createTextNode(d.decision));
+      const label = STATES[d.status] || d.stateText;
+      if (label) li.append(el("span", `state ${d.status}`, label));
+      return li;
+    });
+    $("todayDecHead").hidden = !decisions.length;
+    fill($("todayDecList"), decisions, decisionItem);
+  }
+  function decisionItem(d) {
+    const li = el("li", null, d.decision);
+    const meta = [d.who ? `Qui : ${d.who}` : null, d.when ? `Pour quand : ${d.when}` : null].filter(Boolean).join(" · ");
+    if (meta) li.append(el("div", "decision-meta", meta));
+    return li;
+  }
+  async function refreshMeetings() {
+    // Le problème de la requête précédente reste affiché tant que celle-ci n'a pas répondu.
+    let problem = null;
+    try {
+      const response = await fetch("/api/journal/today", { cache: "no-store" });
+      if (response.status === 401) problem = "Jeton refusé (rouvre l'adresse complète avec ?k=…)";
+      else if (!response.ok) problem = "Le PC a répondu par une erreur";
+      else journal = await response.json();
+    } catch { problem = "PC injoignable"; }
+    journalProblem = problem;
+    renderMeetings();
+  }
+
+  // ---------- Pages ----------
+  // Glisser à gauche ou à droite, ou toucher un point. Pendant un focus, ou dans les 30 minutes avant une séance,
+  // l'écran revient seul à la page Focus après une minute sans que je le touche.
+  const pageCount = 2;
+  let page = Math.min(pageCount - 1, Math.max(0, +store.get("page", 0) || 0)), lastTouch = Date.now();
+  function showPage(i) {
+    page = Math.min(pageCount - 1, Math.max(0, i));
+    $("pages").style.transform = `translateX(calc(${-page * 100}% - ${page * 24}px))`;
+    document.querySelectorAll(".page").forEach((p, j) => { p.inert = j !== page; p.setAttribute("aria-hidden", j !== page); });
+    document.querySelectorAll("#dots button").forEach(b => b.classList.toggle("on", +b.dataset.page === page));
+    store.set("page", page);
+  }
+  document.querySelectorAll("#dots button").forEach(b => b.onclick = () => { lastTouch = Date.now(); showPage(+b.dataset.page); });
+  let swipe = null;
+  $("pager").addEventListener("pointerdown", e => { lastTouch = Date.now(); swipe = e.isPrimary ? { x: e.clientX, y: e.clientY, at: Date.now() } : null; });
+  $("pager").addEventListener("pointercancel", () => { swipe = null; });
+  $("pager").addEventListener("pointerup", e => {
+    if (!swipe) return;
+    const dx = e.clientX - swipe.x, dy = e.clientY - swipe.y, quick = Date.now() - swipe.at < 800;
+    swipe = null;
+    if (quick && Math.abs(dx) > 60 && Math.abs(dx) > 1.5 * Math.abs(dy)) showPage(page + (dx < 0 ? 1 : -1));
+  });
+  document.addEventListener("keydown", e => {
+    if (e.target.closest && e.target.closest("input, textarea")) return;
+    if (e.key === "ArrowRight") { lastTouch = Date.now(); showPage(page + 1); }
+    else if (e.key === "ArrowLeft") { lastTouch = Date.now(); showPage(page - 1); }
+  });
+  function tickPage() {
+    const sb = $("sport").classList;
+    const needed = (endAt && !isBreak) || sb.contains("soon");
+    if (page !== 0 && needed && Date.now() - lastTouch > 60 * 1000) showPage(0);
+  }
+  // #reunions ou #focus choisit la page une fois, puis s'efface : au rechargement, la page mémorisée reprend.
+  function checkPageHash() {
+    const target = { "#reunions": 1, "#focus": 0 }[location.hash];
+    if (target === undefined) return;
+    showPage(target);
+    history.replaceState(null, "", location.pathname + location.search);
+  }
 
   // ---------- Idées ----------
   let ideas = store.get("ideas", [{ t: "Exemple : tester le cache Redis sur l'export", at: "14:32" }]);
@@ -774,7 +1074,7 @@ button.on { border-color: var(--accent); color: var(--accent); }
   function hideCard(msg) { $("ccCard").classList.remove("show"); toast(msg); }
   $("ccAllow").onclick = () => { hideCard("Démo : autorisé (rien n'a été envoyé)."); buddyCheer(); };
   $("ccDeny").onclick = () => hideCard("Démo : refusé (rien n'a été envoyé).");
-  function checkHash() { if (location.hash === "#demo-claude") showDemoCard(); }
+  function checkHash() { if (location.hash === "#demo-claude") showDemoCard(); checkPageHash(); }
   window.addEventListener("hashchange", checkHash); checkHash();
   buddy.addEventListener("dblclick", showDemoCard);
 
@@ -835,9 +1135,16 @@ button.on { border-color: var(--accent); color: var(--accent); }
   connectLive();
 
   // ---------- Boucle ----------
-  function loop() { const now = new Date(); tickClock(now); tickDay(now); tickFocus(); tickNow(); tickSport(now); tickBuddy(now); tickLive(); if (now.getSeconds() === 0) tickNext(now); }
-  renderHoursBtn(); renderCount(); renderTodos(); renderRemind(); renderNow(); renderIdeas(); setMode(25, false); loop();
+  let lastMinute = -1;
+  function loop() {
+    const now = new Date(); tickClock(now); tickDay(now); tickFocus(); tickNow(); tickSport(now); tickBuddy(now); tickLive(); tickPage();
+    // Une fois par minute, pas à chaque passage de la seconde 0.
+    if (now.getMinutes() !== lastMinute) { lastMinute = now.getMinutes(); tickNext(now); renderSession(); renderMeetings(); }
+  }
+  renderHoursBtn(); renderCount(); renderTodos(); renderRemind(); renderNow(); renderIdeas(); setMode(25, false); showPage(page); checkPageHash(); loop();
   refreshCalendar(); setInterval(refreshCalendar, 60 * 1000);
+  refreshMeetings(); setInterval(refreshMeetings, 30 * 1000);
+  refreshClaude(); setInterval(refreshClaude, 30 * 1000);
   setInterval(loop, 250);
 })();
 </script>

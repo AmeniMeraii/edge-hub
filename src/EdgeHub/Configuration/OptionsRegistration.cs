@@ -1,4 +1,6 @@
 using EdgeHub.Calendar;
+using EdgeHub.ClaudeSessions;
+using EdgeHub.Journal;
 using EdgeHub.LogFiles;
 
 namespace EdgeHub.Configuration;
@@ -11,6 +13,8 @@ public static class OptionsRegistration
         services.AddOptions<ServerOptions>().BindConfiguration(ServerOptions.Section).ValidateDataAnnotations().ValidateOnStart();
         services.AddOptions<SecurityOptions>().BindConfiguration(SecurityOptions.Section).ValidateDataAnnotations().ValidateOnStart();
         services.AddOptions<CalendarOptions>().BindConfiguration(CalendarOptions.Section).ValidateDataAnnotations().ValidateOnStart();
+        services.AddOptions<JournalOptions>().BindConfiguration(JournalOptions.Section).ValidateDataAnnotations().ValidateOnStart();
+        services.AddOptions<ClaudeCodeOptions>().BindConfiguration(ClaudeCodeOptions.Section).ValidateDataAnnotations().ValidateOnStart();
         services.AddOptions<LogFileOptions>().BindConfiguration(LogFileOptions.Section).ValidateDataAnnotations().ValidateOnStart();
         return services;
     }

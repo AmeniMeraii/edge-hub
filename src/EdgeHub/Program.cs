@@ -1,6 +1,8 @@
 using EdgeHub.Calendar;
+using EdgeHub.ClaudeSessions;
 using EdgeHub.Configuration;
 using EdgeHub.ConsoleMode;
+using EdgeHub.Journal;
 using EdgeHub.LogFiles;
 using EdgeHub.Security;
 using EdgeHub.Spotify;
@@ -68,6 +70,11 @@ builder.Services.AddHttpClient(IcalCalendarSource.ClientName, client => client.T
     .RemoveAllLoggers();
 builder.Services.AddSingleton<ICalendarSource, IcalCalendarSource>();
 builder.Services.AddSingleton<CalendarToday>();
+builder.Services.AddSingleton<JournalToday>();
+builder.Services.AddSingleton<IClaudeSessionReader, ClaudeSessionReader>();
+builder.Services.AddSingleton<ClaudeSessionMonitor>();
+builder.Services.AddHostedService(services => services.GetRequiredService<ClaudeSessionMonitor>());
+builder.Services.AddSingleton<ClaudeCurrent>();
 builder.Services.AddSingleton<LiveStateHub>();
 builder.Services.AddHostedService<LiveStateService>();
 builder.Services.AddHealthChecks();
@@ -83,6 +90,8 @@ app.MapGet("/api/stream", (LiveStateHub hub, IHostApplicationLifetime lifetime, 
     TypedResults.ServerSentEvents(StreamMessages(hub, requestAborted, lifetime.ApplicationStopping), eventType: "state"));
 
 app.MapGet("/api/calendar/today", (CalendarToday today, CancellationToken cancellationToken) => today.GetAsync(cancellationToken));
+app.MapGet("/api/journal/today", (JournalToday journal, CancellationToken cancellationToken) => journal.GetAsync(cancellationToken));
+app.MapGet("/api/claude/current", (ClaudeCurrent current) => current.Get());
 
 await app.RunAsync();
 return 0;
