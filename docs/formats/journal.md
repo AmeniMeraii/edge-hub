@@ -16,7 +16,7 @@ All examples on this page are invented (tickets `DEMO-101` and `DEMO-102`, proje
   2026-11-25.md        one file per day, named after the PC's local date
 ```
 
-The commands write to `~/Documents/Journal-activite/`, that is `%USERPROFILE%\Documents`, even when Windows' Documents folder is moved to OneDrive. The folder is the `Journal:Folder` setting.
+The commands write to `~/Documents/Journal-activite/`; the real file observed was in `%USERPROFILE%\Documents\Journal-activite`. The folder is the `Journal:Folder` setting.
 
 ## A day's file
 
@@ -90,7 +90,7 @@ The meetings page does not read the reports: they are the material `/prep-reunio
 | Block | Read | Shown on the meetings page |
 |---|---|---|
 | Preparation (the first one of the day) | daily lines (ticket, title, done, remaining, testable), followed-up decisions (decision, state), technical choices (ticket, text), points to raise | Daily, Réunion technique (points to raise in orange), Décisions d'hier |
-| Meeting decisions (every block of the day) | decision, who, when | Décisions du jour |
+| Meeting decisions (every block of the day) | decision, who, when | Décisions du jour, with or without a preparation |
 | Reports | nothing | nothing |
 
 Without a file for the day, or without a preparation in it, the page says « Lance /prep-reunions dans Claude Code ».
@@ -99,8 +99,11 @@ Without a file for the day, or without a preparation in it, the page says « Lan
 
 The blocks are written by a model, so the reader:
 
-- matches headings by their start, whatever the case and the accents (`## daily`, `## Réunion Technique`, `### Suivi des décisions`);
-- accepts `-`, `*`, `+` and numbered bullets, `·` or `•` between fields, any space before `:` (French typography uses a no-break space), and `→`, `->` or `=>` before a state;
+- matches headings by their start, whatever the case, the accents and a symbol in front (`## daily`, `## Réunion Technique`, `### 📋 Daily`, `### Suivi des décisions`, `### Points à soulever`);
+- accepts a preparation written one level lower (`## Préparation du …` with `###` sections, as « just below the title » can be read); it ends at the next heading of its own level, or at an unknown section;
+- accepts `-`, `*`, `+` and numbered bullets, `·` or `•` between fields, any space before `:` (French typography uses a no-break space), and `→`, `->` or `=>` before a state, in bold or after a symbol (`→ **appliquée**`, `→ ✅ en cours`);
+- reads a nested bullet as the continuation of the item above it, so a ticket whose fields come as sub-bullets stays one daily line;
+- ignores separators (`* * *`) and anything inside a code block;
 - keeps a state it does not know as written (`→ abandonnée`), and a line whose fields are missing;
 - skips anything else, so a missing section gives an empty list, never an error;
 - reads the file again only when its write time or size changes, and refuses a file over 1 MB.
