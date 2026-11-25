@@ -1,10 +1,10 @@
 using System.ComponentModel.DataAnnotations;
-using System.Text.RegularExpressions;
+using EdgeHub.Configuration;
 
 namespace EdgeHub.LogFiles;
 
 /// <summary>Section <c>Logs</c>: the service's log file, one per day.</summary>
-public sealed partial class LogFileOptions : IValidatableObject
+public sealed class LogFileOptions : IValidatableObject
 {
     public const string Section = "Logs";
 
@@ -19,21 +19,13 @@ public sealed partial class LogFileOptions : IValidatableObject
     public int RetainedDays { get; set; } = 14;
 
     /// <summary>The folder as a full path, or null when the log file is off.</summary>
-    public string? ResolvedFolder() =>
-        string.IsNullOrWhiteSpace(Folder)
-            ? null
-            : Path.GetFullPath(Environment.ExpandEnvironmentVariables(Folder), AppContext.BaseDirectory);
+    public string? ResolvedFolder() => FolderSetting.Resolve(Folder);
 
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
-        // Windows leaves an unknown variable as it is: the logs would go to a folder named after it.
-        Match unknown = string.IsNullOrWhiteSpace(Folder) ? Match.Empty : UnknownVariable().Match(Environment.ExpandEnvironmentVariables(Folder));
-        if (unknown.Success)
+        if (FolderSetting.UnknownVariable(Folder) is { } unknown)
         {
-            yield return new ValidationResult($"Logs:Folder nomme une variable d'environnement inconnue : {unknown.Value}.", [nameof(Folder)]);
+            yield return new ValidationResult($"Logs:Folder nomme une variable d'environnement inconnue : {unknown}.", [nameof(Folder)]);
         }
     }
-
-    [GeneratedRegex(@"%[^%\\/]+%")]
-    private static partial Regex UnknownVariable();
 }
