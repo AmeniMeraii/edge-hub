@@ -43,7 +43,19 @@ public sealed partial class ClaudeSessionReader(IOptionsMonitor<ClaudeCodeOption
         ActiveSession? best = null;
         foreach (string project in Directory.EnumerateDirectories(root))
         {
-            foreach (string main in Directory.EnumerateFiles(project, "*.jsonl"))
+            IEnumerable<string> mains;
+            try
+            {
+                mains = Directory.EnumerateFiles(project, "*.jsonl").ToList();
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                // A project folder that cannot be listed: the others are still read.
+                LogUnreadable(logger);
+                continue;
+            }
+
+            foreach (string main in mains)
             {
                 ActiveSession? session;
                 try
