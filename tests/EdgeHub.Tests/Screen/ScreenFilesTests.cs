@@ -91,6 +91,17 @@ public sealed class ScreenFilesTests(EdgeHubFactory factory) : IClassFixture<Edg
     }
 
     [Fact]
+    public async Task The_meetings_page_asks_for_prep_reunions_until_there_is_a_preparation()
+    {
+        string page = await factory.CreateClient().GetStringAsync("/", Ct);
+
+        Assert.Contains("aria-label=\"Réunions\"", page, StringComparison.Ordinal);
+        Assert.Contains("Lance /prep-reunions dans Claude Code", page, StringComparison.Ordinal);
+        Assert.Contains("fetch(\"/api/journal/today\"", page, StringComparison.Ordinal);
+        Assert.Contains("fetch(\"/api/claude/current\"", page, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task The_manifest_icon_is_served()
     {
         using var response = await factory.CreateClient().GetAsync("/icon.svg", Ct);
