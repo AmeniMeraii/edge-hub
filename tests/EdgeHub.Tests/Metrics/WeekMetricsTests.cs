@@ -198,6 +198,10 @@ public sealed class WeekMetricsTests : IDisposable
     [InlineData("feat/DEMO-101-export", "DEMO-101", true)]
     [InlineData("phase-01 Export", "phase-0", false)]
     [InlineData("DEMO-10 Export", "DEMO-1", false)]
+    // A ticket without a digit is a common word (« à compléter », « Aucun »): it has to be the task's first word.
+    [InlineData("Mise à jour des dépendances", "à compléter", false)]
+    [InlineData("Passer en revue la PR", "Aucun", false)]
+    [InlineData("Revue de la PR", "Revue", true)]
     public async Task Finds_the_reports_ticket_as_a_whole_word_of_the_task(string task, string ticket, bool reported)
     {
         Journal(25, prepared: true, $"## 10:00 · {ticket} · Un titre inventé");

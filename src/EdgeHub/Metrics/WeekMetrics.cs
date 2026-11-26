@@ -183,13 +183,19 @@ public sealed class WeekMetrics(
     /// <summary>
     /// A task has its report when the ticket of a report of the day is a whole word of the task (« [DEMO-101] Export »,
     /// « J-3 : livrer DEMO-101 »), or, for a task without a ticket (a session not renamed), when the report has the same
-    /// title.
+    /// title. A ticket without a digit may be a common word (« à compléter », « Aucun »): it has to be the task's first
+    /// word.
     /// </summary>
     private static bool Reported(string task, IReadOnlyList<Report> reports) =>
         !string.IsNullOrWhiteSpace(task)
         && reports.Any(r =>
-            LocalDays.ContainsWord(task, LocalDays.TicketOf(r.Ticket))
+            SameTicket(task, LocalDays.TicketOf(r.Ticket))
             || (r.Title.Length > 0 && string.Equals(r.Title.Trim(), task.Trim(), StringComparison.OrdinalIgnoreCase)));
+
+    private static bool SameTicket(string task, string ticket) =>
+        ticket.Any(char.IsDigit)
+            ? LocalDays.ContainsWord(task, ticket)
+            : ticket.Length > 0 && string.Equals(LocalDays.TicketOf(task), ticket, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>A day's metrics, and whether it was worked (a journal file or an event).</summary>
     private sealed record Day(DayMetrics Metrics, bool Worked);
