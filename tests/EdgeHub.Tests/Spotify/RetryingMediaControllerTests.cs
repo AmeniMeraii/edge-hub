@@ -43,8 +43,10 @@ public sealed class RetryingMediaControllerTests
             ++_attempts == 1 ? neverAnswers.Task : Task.FromResult<IMediaController>(inner);
         using var media = new RetryingMediaController(hangsThenWorks, _clock, creationLimit: TimeSpan.FromMilliseconds(100));
 
+        Task<MediaState?> first = media.GetStateAsync(Ct);
+        _clock.Advance(TimeSpan.FromMilliseconds(100));
         // Bounded here too, so a missing limit fails the test instead of hanging it.
-        Assert.Null(await media.GetStateAsync(Ct).WaitAsync(TimeSpan.FromSeconds(5), Ct));
+        Assert.Null(await first.WaitAsync(TimeSpan.FromSeconds(5), Ct));
         _clock.Advance(TimeSpan.FromSeconds(31));
 
         Assert.Same(Track, await media.GetStateAsync(Ct));

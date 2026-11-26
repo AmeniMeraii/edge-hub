@@ -246,4 +246,34 @@ public sealed class ClaudeSessionReaderTests : IDisposable
 
         Assert.Null(Reader().FindActive());
     }
+
+    [Fact]
+    public void Names_a_hooks_session_after_its_rename_file_or_the_titles_already_read()
+    {
+        string transcript = _folder.Write("a1", Ago(1), [User(Ago(5)), AiTitle("Export"), Assistant(Ago(1))]);
+        ClaudeSessionReader reader = Reader();
+
+        // Not read yet: the hook does not wait for a whole session to be read.
+        Assert.Equal("bookshelf", reader.NameOf(transcript, Cwd));
+
+        reader.FindActive();
+        Assert.Equal("Export", reader.NameOf(transcript, Cwd));
+
+        _folder.WriteCustomTitleFile("a1", "DEMO-102");
+        Assert.Equal("DEMO-102", reader.NameOf(transcript, Cwd));
+    }
+
+    [Fact]
+    public void Names_a_hooks_session_after_its_folder_when_its_file_is_not_in_the_projects_folder()
+    {
+        using var elsewhere = new SessionFolder();
+        string transcript = elsewhere.Write("a1", Ago(1), [User(Ago(5)), Assistant(Ago(1))]);
+        elsewhere.WriteCustomTitleFile("a1", "DEMO-102");
+
+        Assert.Equal("bookshelf", Reader().NameOf(transcript, Cwd));
+        Assert.Equal("bookshelf", Reader().NameOf(Path.Combine(_folder.Root, "..", Path.GetFileName(elsewhere.Root), "C--Users-demo-repo-bookshelf", "a1.jsonl"), Cwd));
+        Assert.Equal("bookshelf", Reader().NameOf(null, Cwd + @"\"));
+        Assert.Equal("Claude Code", Reader().NameOf(null, null));
+        Assert.Equal("Claude Code", Reader(projects: "").NameOf(transcript, " "));
+    }
 }

@@ -9,6 +9,9 @@ public sealed class LiveStateHubTests
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
+    /// <summary>A state that never comes fails the test instead of hanging it.</summary>
+    private static Task<bool> Soon(ValueTask<bool> next) => next.AsTask().WaitAsync(TimeSpan.FromSeconds(5), Ct);
+
     [Fact]
     public async Task A_new_subscriber_first_receives_the_latest_state()
     {
@@ -74,5 +77,46 @@ public sealed class LiveStateHubTests
         }
 
         Assert.Equal(0, hub.SubscriberCount);
+    }
+
+    [Fact]
+    public async Task Counts_the_screens_on_another_device()
+    {
+        var hub = new LiveStateHub();
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(Ct);
+        hub.Publish(State(cpu: 1));
+
+        await using var onThePc = hub.Subscribe(fromAnotherDevice: false, stop.Token).GetAsyncEnumerator(stop.Token);
+        Assert.True(await Soon(onThePc.MoveNextAsync()));
+        Assert.Equal(0, hub.ScreensElsewhere);
+
+        await using (var tablet = hub.Subscribe(fromAnotherDevice: true, stop.Token).GetAsyncEnumerator(stop.Token))
+        {
+            Assert.True(await Soon(tablet.MoveNextAsync()));
+            Assert.Equal(1, hub.ScreensElsewhere);
+        }
+
+        Assert.Equal(0, hub.ScreensElsewhere);
+        Assert.Equal(1, hub.SubscriberCount);
+    }
+
+    [Fact]
+    public async Task A_nudge_sends_the_latest_state_again_so_that_screens_read_what_changed()
+    {
+        var hub = new LiveStateHub();
+        await using var screen = hub.Subscribe(Ct).GetAsyncEnumerator(Ct);
+        ValueTask<bool> next = screen.MoveNextAsync();
+
+        hub.Nudge();
+        Assert.True(await Soon(next));
+        Assert.Equal(new LiveState(null, null), screen.Current);
+        Assert.Null(hub.Latest);
+
+        LiveState latest = State(cpu: 5);
+        hub.Publish(latest);
+        Assert.True(await Soon(screen.MoveNextAsync()));
+        hub.Nudge();
+        Assert.True(await Soon(screen.MoveNextAsync()));
+        Assert.Same(latest, screen.Current);
     }
 }

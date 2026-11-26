@@ -88,5 +88,7 @@ public sealed class ClaudeCurrentTests
         public Exception? Failure { get; set; }
 
         public ActiveSession? FindActive() => Failure is { } failure ? throw failure : Session;
+
+        public string NameOf(string? transcriptPath, string? cwd) => "Claude Code";
     }
 }

@@ -15,20 +15,15 @@ dotnet test
 
 ## Run the service
 
-Give the service an access token once, outside git: 32 characters or more, only letters, digits, `-` and `_`, since it travels in an address. This PowerShell line prints a suitable random one:
+Make the tablet's access token once, in your own terminal:
 
 ```powershell
-$bytes = New-Object byte[] 24; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes); ($bytes | ForEach-Object { $_.ToString('x2') }) -join ''
+dotnet run --project src/EdgeHub -- --new-token
 ```
 
-During development, keep it in user secrets, then run the service:
+It prints a new token and its SHA-256 hash, once. The PC keeps only the hash: during development, in user secrets, with the command it prints (`dotnet user-secrets set Security:TokenHash <hash> --project src/EdgeHub`), then run the service with `dotnet run --project src/EdgeHub`. The token itself goes only to the tablet, in the address below; keep it nowhere else, so that an agent reading the PC's files (Claude Code, for one) can never answer a request in the tablet's place. A lost token is replaced by running the command again.
 
-```powershell
-dotnet user-secrets set Security:Token "<token>" --project src/EdgeHub
-dotnet run --project src/EdgeHub
-```
-
-A published service reads `appsettings.Local.json` next to `EdgeHub.exe` instead (user secrets only exist in development). `src/EdgeHub/appsettings.example.json` explains every setting, including the one that opens the service to the tablet; by default it only answers on this PC.
+A published service reads `appsettings.Local.json` next to `EdgeHub.exe` instead (user secrets only exist in development); `EdgeHub.exe --new-token` prints the same. `src/EdgeHub/appsettings.example.json` explains every setting, including the one that opens the service to the tablet; by default it only answers on this PC.
 
 Open `http://<PC address>:5080/?k=<token>` once on the screen: the token moves into a cookie and the address is cleaned. The page then receives the PC's stats and the current track every second from `/api/stream`. Prefer opening it on the tablet rather than in the PC's own browser: cookies are not tied to a port, so a browser on the PC would also send this one to other local development servers.
 
@@ -63,6 +58,12 @@ The top of the meetings page shows « Ma semaine », the indicators of [`docs/pr
 Today enters a ratio, on both sides, once it is settled: when it scores, or when it can no longer (after the daily time for the preparation, after the session's time for sport). A day not over yet is not a day missed, and a ratio over no day yet shows « — ».
 
 The screen sends what it notices (focus completed, pause started, pause reminder, task finished or changed, sport session done) to `POST /api/events`, each with an id so that an event sent twice is kept once; events it could not send wait on the tablet and leave later with their time. The PC appends them, with its own `preparation-seen`, to `%LOCALAPPDATA%\EdgeHub\events.jsonl`, one JSON object per line (`at`, `type`, `id`, and `task`, at most 200 characters, for a finished task). Nothing leaves the PC and the tablet. `Metrics:Enabled` set to `false`, or an empty `Metrics:Folder`, turns the measure and the tile off.
+
+## Claude Code on the tablet
+
+With the optional hooks of [`integrations/claude-code/hooks/`](integrations/claude-code/hooks/README.md), a permission Claude Code asks for (`git push origin main`, writing a file) shows as a card at the top of the screen, whatever the page: the session's name and folder, the command in full (or the file's path), the time left, and three buttons, **Refuser**, **Répondre sur le PC** and **Autoriser**. A sensitive request (`git push --force`, `reset --hard`, recursive deletes, anything touching `.git` or outside the project) is red and has no Autoriser: it is refused, or handed back to the PC. Several requests wait in a pile, the oldest first. A card arrives with a soft beep and a short vibration, silent during a focus session; « Bip des demandes » on the meetings page turns them off.
+
+The PC makes a request wait only while a screen is open on another device: with no tablet connected, or without an answer in time (`ClaudeCode:PermissionTimeoutSeconds`, 60 s), Claude Code asks on the PC as usual. Allow and Refuse are only accepted from another device than the PC, so that nothing running on the PC can answer in your place. « Claude Code a besoin de toi » and « a fini » show for 10 seconds, and the last five stay at the top of the meetings page. The mascot sounds the alert while a card waits, is happy when a session finishes or a request is allowed, and reads while a session has worked in the last two minutes. `#demo-claude` and `#demo-claude-risque` in the address, or a double touch on the mascot, show a demo card that sends nothing.
 
 ## Logs
 

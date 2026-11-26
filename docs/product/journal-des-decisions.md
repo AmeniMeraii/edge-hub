@@ -134,3 +134,21 @@ Une entrée par choix important : le contexte, les options, la décision et ce q
 - **Options** : attendre un vrai fichier avant de coder la lecture ; lire d'après le format défini dans les commandes, en restant tolérant.
 - **Décision** : lire d'après les commandes, de façon tolérante : titres reconnus par leur début, sous-puces, niveaux de titres variables, états en gras.
 - **Conséquences** : la page Réunions marche dès le premier `/prep-reunions`. Le format sera confirmé sur mon premier vrai fichier, puis `docs/formats/journal.md` mis à jour. Quelques mises en forme hors définition, comme un rapport sans heure ou les décisions du jour écrites dans la préparation, ne sont pas lues.
+
+## D23 · Mesurer les indicateurs à partir de ce que l'écran voit vraiment · 26/11/2026
+- **Contexte** : `indicateurs.md` fixe les indicateurs, mais trois définitions restaient à rendre mesurables : une tâche terminée, une préparation faite avant le daily, un rappel de pause respecté.
+- **Options** : des gestes dédiés sur l'écran (un bouton « Pause prise », une saisie de l'heure de préparation) ; des mesures tirées de ce que l'écran et le PC voient déjà.
+- **Décision** : une tâche est terminée quand je touche « Terminé ». Elle a son rapport si un `/rapport` du même jour porte le même ticket, ou le même titre. « Avant le daily » compare l'heure à laquelle le PC voit la préparation pour la première fois à l'heure du daily réglée dans la config. Un rappel est suivi si une pause, une tâche terminée ou un changement de tâche arrive dans les 10 minutes.
+- **Conséquences** : aucun geste de plus. En contrepartie, la mesure ne voit que ce qui passe par l'écran et le journal, et un jour où le PC n'a pas vu la préparation arriver reste « inconnu » pour l'avant-daily.
+
+## D24 · Un jour en cours n'est pas un jour manqué · 26/11/2026
+- **Contexte** : le matin, le jour même n'est encore ni tenu ni manqué. Le compter dès minuit affichait « 0/1 » le lundi matin et faisait baisser les ratios toute la matinée.
+- **Options** : compter le jour même dès le matin ; ne le compter qu'une fois acquis.
+- **Décision** : le jour même n'entre dans un ratio, des deux côtés, qu'une fois acquis, ou une fois qu'il ne peut plus l'être (l'heure du daily passée pour la préparation, l'heure de la séance passée pour le sport). Sur aucun jour, la tuile affiche « — ».
+- **Conséquences** : les chiffres du matin ne sont pas tirés vers le bas, mais le dénominateur peut changer au cours de la journée.
+
+## D25 · Aucun événement perdu ni compté deux fois · 26/11/2026
+- **Contexte** : l'écran envoie ses événements au PC, qui peut dormir ou être injoignable. Une réponse perdue fait renvoyer un événement.
+- **Options** : envoyer et oublier ; garder sur la tablette ce qui n'est pas parti et le renvoyer avec un identifiant.
+- **Décision** : les événements non envoyés attendent sur la tablette, avec leur heure d'origine et un identifiant, et repartent plus tard. Le PC garde chaque identifiant une seule fois et refuse les événements de plus de 8 jours.
+- **Conséquences** : les mesures restent justes quand le PC dort. La tablette garde quelques jours d'événements, textes des tâches compris, jusqu'à leur envoi.

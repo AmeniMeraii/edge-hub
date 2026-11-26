@@ -6,7 +6,13 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Changed
+- The PC keeps only the SHA-256 hash of the tablet's token (`Security:TokenHash`), made with `--new-token`; a token kept in clear (`Security:Token`) is refused at startup with how to replace it.
+- The screen's fonts are served by the PC instead of Google Fonts: the screen loads nothing from the internet.
+
 ### Added
+- Claude Code hooks, service side: `/hooks/claude/permission`, `/notification` and `/stop`, taken from the PC only with their own token (`ClaudeCode:HookTokenHash`, made with `--new-hook-token`). A permission request waits for the tablet (`ClaudeCode:PermissionTimeoutSeconds`, 60 s) when a screen is open on another device, and otherwise gets no decision at once, so that Claude Code asks on the PC. The tablet answers with `POST /api/claude/pending/{id}/allow|deny|pc`; Allow and Refuse are refused from the PC itself, and a sensitive request (rules in `ClaudeCode:SensitiveCommands`, `.git`, outside the working folder) cannot be allowed. Each decision taken on the tablet goes to `decisions.log`. Notifications and stops become notices; `/api/stream` and `/api/claude/pending` carry the cards and the notices.
+- Claude Code card on the screen, over every page: session, folder, command in full or file path, time left, Refuser, Répondre sur le PC and Autoriser; a sensitive request is red, without Autoriser. The oldest request first, the others counted below. A soft beep and a vibration on arrival, silent during a focus session and switchable on the meetings page. « a besoin de toi » and « a fini » show for 10 seconds and the last five stay on the meetings page. The mascot sounds the alert while a card waits, cheers when a session finishes, and reads while a session works. Demo cards: `#demo-claude`, `#demo-claude-risque`.
 - « Ma semaine » on the meetings page, from `/api/metrics/week`: days held (preparation done and each finished task reported with the same ticket), preparation before the daily (`Metrics:DailyTime`), days with a report, focus sessions, sport sessions done out of those planned, pause reminders followed. The screen sends its events to `POST /api/events`, kept in `%LOCALAPPDATA%\EdgeHub\events.jsonl`, and keeps those it could not send on the tablet for later; nothing leaves the two. The PC notes the first time it sees the day's preparation. `Metrics:Enabled` turns it all off.
 - Meetings page, reached by swiping or with the dots at the bottom: the morning's preparation from the activity journal (daily per ticket, technical choices, points to raise, state of the previous decisions) and the day's meeting decisions, from `/api/journal/today`; « Lance /prep-reunions dans Claude Code » without a preparation. The day's file is read again as soon as it changes.
 - Active Claude Code session (`/api/claude/current`): name, branch, start and number of edited files, found every 30 seconds with the rule of decision D10 and read incrementally, metadata only. It fills « Une seule chose » when it is empty, never over a task typed by hand, keeps its task when renamed, and heads the meetings page.
@@ -24,9 +30,6 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - Optional Claude Code integration: `/rapport`, `/prep-reunions` and `/decisions` commands, example hooks configuration with its install notes.
 - The original single-file screen, imported unchanged and now served from `src/EdgeHub/wwwroot/index.html`.
 - Observed format of Claude Code session files, as groundwork for the session reader (`docs/formats/claude-code-sessions.md`).
-
-### Changed
-- The screen's fonts are served by the PC instead of Google Fonts: the screen loads nothing from the internet.
 
 ### Fixed
 - The screen's day, and its count of focus sessions, now change at local midnight; the day used to change at 1 or 2 a.m. in Paris (UTC date).

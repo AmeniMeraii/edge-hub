@@ -64,6 +64,7 @@
   --accent: #5cc8ff;
   --focus: #ffb547;
   --ok: #5ee0a0;
+  --danger: #ff7a7a;
   --font-display: "Chakra Petch", "Segoe UI", system-ui, sans-serif;
   --font-body: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
   color-scheme: dark;
@@ -207,26 +208,54 @@ button.on { border-color: var(--accent); color: var(--accent); }
 .buddy.alert .eye { transform: scale(1.25); }
 .buddy.jump .whole { animation: jump .5s ease-out 2; }
 .buddy.sleepy .whole { animation-duration: 6s; }
+/* Une session Claude Code travaille : les yeux balaient comme s'il lisait. */
+.buddy.reading .gaze { animation: read 2.4s ease-in-out infinite; }
 @keyframes breathe { 0%,100% { transform: scale(1, 1); } 50% { transform: scale(1.03, .97); } }
 @keyframes hop { 0%,100% { transform: translateY(0) scale(1, 1); } 30% { transform: translateY(-14%) scale(.96, 1.04); } 55% { transform: translateY(0) scale(1.06, .94); } }
 @keyframes jump { 0% { transform: translateY(0); } 40% { transform: translateY(-22%) rotate(-6deg); } 100% { transform: translateY(0); } }
+@keyframes read { 0%, 100% { transform: translate(-5px, 2px); } 50% { transform: translate(5px, 2px); } }
 
-/* Carte Claude Code */
+/* Carte Claude Code : une demande d'autorisation, par-dessus toutes les pages */
 .cc-card {
   position: fixed; top: 12px; left: 50%; transform: translateX(-50%); width: min(720px, calc(100% - 24px));
+  max-height: calc(100% - 24px); overflow-y: auto;
   background: #1b2230; border: 1px solid var(--focus); border-radius: 16px; padding: 14px 16px;
-  display: none; gap: 14px; align-items: center; z-index: 10;
+  display: none; gap: 14px; align-items: flex-start; z-index: 10;
 }
 .cc-card.show { display: flex; }
+.cc-card.sensitive { border-color: var(--danger); background: #2a171b; }
 .cc-card .buddy { margin: 0; width: 64px; }
 .cc-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
-.cc-head { font-size: 14px; color: var(--muted); }
+.cc-head { font-size: 14px; color: var(--muted); display: flex; gap: 6px; align-items: baseline; }
 .cc-head b { color: var(--ink); font-weight: 600; }
-.cc-cmd { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 15px; background: #0f141c; border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; overflow-wrap: anywhere; }
-.cc-actions { display: flex; gap: 10px; align-items: center; }
-.cc-actions button { min-height: 48px; min-width: 120px; font-size: 16px; }
+.cc-who { min-width: 0; overflow-wrap: anywhere; }
+.cc-left { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--focus); white-space: nowrap; }
+.cc-what { font-size: 16px; }
+.cc-desc { font-size: 13px; color: var(--muted); }
+/* La commande en entier : elle défile plutôt que d'être coupée. */
+.cc-cmd { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 15px; background: #0f141c; border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; overflow-wrap: anywhere; white-space: pre-wrap; max-height: 34vh; overflow-y: auto; }
+.cc-reason { font-size: 14px; color: var(--danger); }
+.cc-actions { display: flex; gap: 10px; align-items: stretch; }
+.cc-actions button { flex: 1; min-height: 64px; font-size: 18px; border-radius: 12px; }
+#ccPc { flex: .8; font-size: 15px; }
+.cc-card.sensitive #ccPc { color: var(--ink); border-color: var(--ink); font-weight: 600; }
 #ccAllow { background: var(--ink); color: var(--bg); border-color: var(--ink); font-weight: 600; }
-.cc-demo { font-size: 11px; color: var(--focus); margin-left: auto; }
+.cc-actions button:disabled { opacity: .5; }
+.cc-foot { display: flex; gap: 10px; font-size: 12px; color: var(--muted); }
+.cc-foot:empty { display: none; }
+.cc-demo { color: var(--focus); margin-left: auto; }
+/* Nouvelles de Claude Code : « a besoin de toi », « a fini » */
+.cc-notice {
+  position: fixed; top: 12px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 24px); z-index: 9;
+  background: #1b2230; border: 1px solid var(--accent); border-radius: 12px; padding: 10px 16px; font-size: 15px;
+  display: none; gap: 8px; align-items: center; cursor: pointer;
+}
+.cc-notice.show { display: flex; }
+.cc-notice.done { border-color: var(--ok); }
+.cc-notice b { font-weight: 600; }
+.cc-notices { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 2px 14px; font-size: 13px; color: var(--muted); }
+.cc-notices:empty { display: none; }
+.cc-notices .done { color: var(--ok); }
 
 .toast {
   position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%);
@@ -351,7 +380,7 @@ button.on { border-color: var(--accent); color: var(--accent); }
   .focus .ring-wrap { height: 220px; flex: none; }
   .todo { min-height: 240px; }
 }
-@media (prefers-reduced-motion: reduce) { .ring .prog { transition: none; } .buddy .whole, .buddy.alert .whole, .buddy.jump .whole { animation: none; } .buddy .gaze { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .ring .prog { transition: none; } .buddy .whole, .buddy.alert .whole, .buddy.jump .whole, .buddy.reading .gaze { animation: none; } .buddy .gaze { transition: none; } }
 </style>
 </head>
 <body>
@@ -468,9 +497,10 @@ button.on { border-color: var(--accent); color: var(--accent); }
 <section class="meet page" id="pageMeet" aria-label="Réunions">
   <div class="tile meet-head">
     <div class="session">
-      <div class="label"><span>Claude Code</span></div>
+      <div class="label"><span>Claude Code</span><button type="button" id="ccSoundBtn" style="font-size:11px;padding:3px 8px"></button></div>
       <div class="session-name empty" id="sessionName">Aucune session Claude Code active</div>
       <div class="session-meta" id="sessionMeta"></div>
+      <ul class="cc-notices" id="ccNotices" aria-label="Dernières nouvelles de Claude Code"></ul>
     </div>
     <div class="week" id="weekBox" hidden>
       <div class="label"><span>Ma semaine</span></div>
@@ -535,15 +565,20 @@ button.on { border-color: var(--accent); color: var(--accent); }
         </svg>
       </div>
   <div class="cc-main">
-    <div class="cc-head" id="ccHead"><b>Claude Code</b> · DEMO-101 a besoin de ton accord</div>
-    <div class="cc-cmd" id="ccCmd">git push origin main</div>
+    <div class="cc-head" id="ccHead"><b>Claude Code</b><span class="cc-who" id="ccWho"></span><span class="cc-left" id="ccLeft"></span></div>
+    <div class="cc-what" id="ccWhat"></div>
+    <div class="cc-desc" id="ccDesc" hidden></div>
+    <div class="cc-cmd" id="ccCmd"></div>
+    <div class="cc-reason" id="ccReason" hidden></div>
     <div class="cc-actions">
       <button type="button" id="ccDeny">Refuser</button>
+      <button type="button" id="ccPc">Répondre sur le PC</button>
       <button type="button" id="ccAllow">Autoriser</button>
-      <span class="cc-demo">Démo : rien n'est envoyé</span>
     </div>
+    <div class="cc-foot"><span id="ccMore" hidden></span><span class="cc-demo" id="ccDemo" hidden>Démo : rien n'est envoyé</span></div>
   </div>
 </div>
+<div class="cc-notice" id="ccNotice" role="status"></div>
 <div class="toast" id="toast" role="status"></div>
 <div class="pc-offline" id="pcOffline" role="status" hidden>PC hors ligne</div>
 
@@ -1152,20 +1187,24 @@ button.on { border-color: var(--accent); color: var(--accent); }
     setTimeout(gazeLoop, 2500 + Math.random() * 3000);
   }
   function buddyCheer(ms = 2500) { buddyTemp = "happy jump"; buddyTempUntil = Date.now() + ms; }
+  // Priorité du plan (section 5) : alerte > content temporaire > lit > concentré > endormi > repos.
   function buddyState(now) {
-    if (Date.now() < buddyTempUntil && buddyTemp) return buddyTemp;
-    if ($("ccCard").classList.contains("show")) return "alert";
+    if (ccCurrent()) return "alert";
     const sb = $("sport").classList;
     if (sb.contains("soon") || sb.contains("now")) return "alert";
     if ($("nowTile").classList.contains("long")) return "alert";
-    if (endAt && !isBreak) return "focus";
+    if (Date.now() < buddyTempUntil && buddyTemp) return buddyTemp;
     if (isBreak && endAt) return "happy";
+    if (claudeReading()) return "reading";
+    if (endAt && !isBreak) return "focus";
     if (now.getHours() >= 22 || now.getHours() < 6) return "sleepy";
     return "";
   }
+  // Une session Claude Code a travaillé dans les 2 dernières minutes (heure du PC, corrigée de l'écart d'horloge).
+  const claudeReading = () => claudeLive() && Date.now() - cc.skew - Date.parse(claude.lastActivityAt) < 2 * 60 * 1000;
   function tickBuddy(now) {
     const st = buddyState(now);
-    ["focus", "happy", "jump", "alert", "sleepy"].forEach(c => buddy.classList.toggle(c, st.split(" ").includes(c)));
+    ["focus", "happy", "jump", "alert", "sleepy", "reading"].forEach(c => buddy.classList.toggle(c, st.split(" ").includes(c)));
     if (st === "focus") moveGaze(buddy, 0, 3);
   }
   buddy.onclick = () => { buddyCheer(1200); tickBuddy(new Date()); };
@@ -1174,14 +1213,148 @@ button.on { border-color: var(--accent); color: var(--accent); }
   $("sportDone").addEventListener("click", () => buddyCheer());
   $("nowDone").addEventListener("click", () => buddyCheer());
 
-  // ---------- Carte Claude Code (démo, en attendant le service du PC) ----------
-  function showDemoCard() { $("ccCard").classList.add("show"); beep(); }
-  function hideCard(msg) { $("ccCard").classList.remove("show"); toast(msg); }
-  $("ccAllow").onclick = () => { hideCard("Démo : autorisé (rien n'a été envoyé)."); buddyCheer(); };
-  $("ccDeny").onclick = () => hideCard("Démo : refusé (rien n'a été envoyé).");
-  function checkHash() { if (location.hash === "#demo-claude") showDemoCard(); checkPageHash(); }
+  // ---------- Claude Code : demandes d'autorisation et nouvelles, reçues par les hooks du PC ----------
+  // Les cartes arrivent avec chaque message de /api/stream. La plus ancienne s'affiche, les autres attendent derrière.
+  // Une demande sensible n'a pas de bouton Autoriser : on la refuse, ou on la rend au PC.
+  const cc = { skew: 0, takenAt: null, answered: new Set(), heard: new Set(), notices: null, sending: false, demo: null, shownId: "", shownAt: 0 };
+  const DEMO = {
+    id: "demo", demo: true, session: "DEMO-101", folder: "bookshelf", tool: "PowerShell", kind: "Command",
+    summary: "git push origin main", description: "Pousser la branche", sensitive: false, reason: null,
+  };
+  const DEMO_RISKY = { ...DEMO, id: "demo-risky", summary: "git push --force origin main", sensitive: true, reason: "push forcé" };
+  const FILE_VERBS = { Write: "écrire le fichier", Edit: "modifier le fichier", MultiEdit: "modifier le fichier", NotebookEdit: "modifier le notebook" };
+  const ANSWERED = { allow: "Autorisé depuis la tablette.", deny: "Refusé depuis la tablette.", pc: "Question rendue au PC." };
+  let ccSound = store.get("ccSound", true);
+  const renderSoundBtn = () => { $("ccSoundBtn").textContent = ccSound ? "Bip des demandes : oui" : "Bip des demandes : non"; };
+  $("ccSoundBtn").onclick = () => { ccSound = !ccSound; store.set("ccSound", ccSound); renderSoundBtn(); };
+
+  const deskOf = () => (live.latest && live.latest.claude) || { pending: [], notices: [] };
+  // L'heure du PC vue de la tablette : le compte à rebours suit l'heure du PC, même si les deux horloges diffèrent.
+  const pcNow = () => Date.now() - cc.skew;
+  function ccPending() {
+    if (Date.now() - live.lastMessageAt > 15000) return [];
+    return (deskOf().pending || []).filter(c => !cc.answered.has(c.id) && Date.parse(c.expiresAt) > pcNow());
+  }
+  function ccCurrent() { return cc.demo || ccPending()[0] || null; }
+
+  // Un doux bip à deux notes et une courte vibration ; rien pendant un focus, ni quand il est coupé.
+  function softBeep() {
+    if (!ccSound || (endAt && !isBreak)) return;
+    try {
+      audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+      [[660, 0], [880, .18]].forEach(([f, t]) => {
+        const o = audio.createOscillator(), g = audio.createGain();
+        o.frequency.value = f; o.connect(g); g.connect(audio.destination);
+        g.gain.setValueAtTime(.0001, audio.currentTime + t);
+        g.gain.exponentialRampToValueAtTime(.12, audio.currentTime + t + .02);
+        g.gain.exponentialRampToValueAtTime(.0001, audio.currentTime + t + .22);
+        o.start(audio.currentTime + t); o.stop(audio.currentTime + t + .25);
+      });
+    } catch {}
+    try { navigator.vibrate && navigator.vibrate(120); } catch {}
+  }
+
+  function setCardButtons(on) { ["ccDeny", "ccPc", "ccAllow"].forEach(id => { $(id).disabled = !on; }); }
+  function renderCard() {
+    const card = ccCurrent(), box = $("ccCard");
+    box.classList.toggle("show", !!card);
+    if (!card) { cc.shownId = ""; return; }
+    if (cc.shownId !== card.id) {
+      cc.shownId = card.id; cc.shownAt = Date.now();
+      box.classList.toggle("sensitive", !!card.sensitive);
+      $("ccWho").textContent = ` · ${card.session}${card.folder ? " · " + card.folder : ""}`;
+      $("ccWhat").textContent = card.kind === "Command" ? "veut lancer cette commande :"
+        : card.kind === "File" ? `veut ${FILE_VERBS[card.tool] || "toucher au fichier"} :`
+        : `veut utiliser ${card.tool} :`;
+      $("ccDesc").textContent = card.description || ""; $("ccDesc").hidden = !card.description;
+      $("ccCmd").textContent = card.summary; $("ccCmd").scrollTop = 0;
+      $("ccReason").textContent = card.sensitive ? `Sensible (${card.reason || "à vérifier"}) : elle ne s'autorise que sur le PC.` : "";
+      $("ccReason").hidden = !card.sensitive;
+      $("ccAllow").hidden = !!card.sensitive;
+      $("ccDemo").hidden = !card.demo;
+      setCardButtons(!cc.sending);
+    }
+    const others = card.demo ? 0 : ccPending().length - 1;
+    $("ccMore").textContent = others > 0 ? `+ ${others} autre${others > 1 ? "s" : ""} demande${others > 1 ? "s" : ""} en attente` : "";
+    $("ccMore").hidden = others <= 0;
+    $("ccLeft").textContent = card.demo ? "" : `${Math.max(0, Math.ceil((Date.parse(card.expiresAt) - pcNow()) / 1000))} s`;
+  }
+
+  async function answerCard(verdict) {
+    const card = ccCurrent();
+    // Une carte qui vient d'apparaître sous le doigt n'est pas une réponse.
+    if (!card || cc.sending || Date.now() - cc.shownAt < 700) return;
+    if (card.demo) {
+      cc.demo = null; renderCard();
+      toast(`Démo : ${ANSWERED[verdict].toLowerCase()} Rien n'a été envoyé.`);
+      if (verdict === "allow") buddyCheer();
+      return;
+    }
+    cc.sending = true; setCardButtons(false);
+    let status = 0;
+    try {
+      const response = await fetch(`/api/claude/pending/${encodeURIComponent(card.id)}/${verdict}`, { method: "POST", cache: "no-store", signal: AbortSignal.timeout(5000) });
+      status = response.status;
+    } catch {}
+    cc.sending = false;
+    if (status === 204) { cc.answered.add(card.id); toast(ANSWERED[verdict]); if (verdict === "allow") buddyCheer(); }
+    else if (status === 404) { cc.answered.add(card.id); toast("Cette demande n'attend plus : elle a eu sa réponse ailleurs, ou son délai est passé."); }
+    else if (status === 409) toast("Commande sensible : elle ne s'autorise que sur le PC.");
+    else if (status === 403) toast("Autoriser et Refuser se font depuis la tablette, pas depuis le PC.");
+    else if (status === 401) toast("Jeton refusé : rouvre l'adresse complète avec ?k=");
+    else toast("Le PC ne répond pas : réessaie, ou réponds sur le PC.");
+    setCardButtons(true); renderCard(); tickBuddy(new Date());
+  }
+  $("ccDeny").onclick = () => answerCard("deny");
+  $("ccPc").onclick = () => answerCard("pc");
+  $("ccAllow").onclick = () => answerCard("allow");
+
+  function showNotice(n) {
+    if (ccCurrent()) return;
+    const box = $("ccNotice");
+    box.replaceChildren(el("b", null, "Claude Code"), el("span", null, `${n.session} ${n.kind === "Done" ? "a fini" : "a besoin de toi"}`));
+    box.classList.toggle("done", n.kind === "Done");
+    box.classList.add("show");
+    clearTimeout(showNotice.t); showNotice.t = setTimeout(() => box.classList.remove("show"), 10000);
+  }
+  $("ccNotice").onclick = () => $("ccNotice").classList.remove("show");
+  function renderNotices(list) {
+    const items = list.slice(-5).reverse().map(n => {
+      const at = new Date(Date.parse(n.at) + cc.skew);
+      return el("li", n.kind === "Done" ? "done" : null, `${hhmm(at)} · ${n.session} ${n.kind === "Done" ? "a fini" : "a besoin de toi"}`);
+    });
+    $("ccNotices").replaceChildren(...items);
+  }
+
+  // À chaque message du flux : l'écart d'horloge, les nouvelles cartes (bip), les nouvelles (petite carte, mascotte).
+  function onDesk() {
+    const stats = live.latest && live.latest.stats;
+    if (stats && stats.takenAt !== cc.takenAt) { cc.takenAt = stats.takenAt; const t = Date.parse(stats.takenAt); if (!Number.isNaN(t)) cc.skew = Date.now() - t; }
+    const desk = deskOf(), pending = desk.pending || [], notices = desk.notices || [];
+    const ids = new Set(pending.map(c => c.id));
+    [...cc.answered].forEach(id => { if (!ids.has(id)) cc.answered.delete(id); });
+    if (pending.some(c => !cc.heard.has(c.id) && !cc.answered.has(c.id))) softBeep();
+    cc.heard = ids;
+    // Au premier message, les nouvelles de l'heure passée vont dans la liste sans s'afficher.
+    if (cc.notices === null) cc.notices = new Set(notices.map(n => n.id));
+    const fresh = notices.filter(n => !cc.notices.has(n.id));
+    fresh.forEach(n => cc.notices.add(n.id));
+    if (fresh.length) showNotice(fresh[fresh.length - 1]);
+    if (fresh.some(n => n.kind === "Done")) buddyCheer(5000);
+    renderNotices(notices);
+    renderCard(); tickBuddy(new Date());
+  }
+
+  // Démo, sans le PC : #demo-claude, #demo-claude-risque, ou un double toucher sur la mascotte.
+  function showDemoCard(card) { cc.demo = card; renderCard(); softBeep(); }
+  function checkHash() {
+    if (location.hash === "#demo-claude") showDemoCard(DEMO);
+    if (location.hash === "#demo-claude-risque") showDemoCard(DEMO_RISKY);
+    checkPageHash();
+  }
   window.addEventListener("hashchange", checkHash); checkHash();
-  buddy.addEventListener("dblclick", showDemoCard);
+  buddy.addEventListener("dblclick", () => showDemoCard(DEMO));
+  renderSoundBtn();
 
   // ---------- Plein écran & écran allumé ----------
   $("btnFull").onclick = async () => {
@@ -1216,7 +1389,7 @@ button.on { border-color: var(--accent); color: var(--accent); }
     live.source = source;
     source.addEventListener("state", e => {
       try { live.latest = JSON.parse(e.data); live.lastMessageAt = Date.now(); live.refused = false; } catch {}
-      tickLive();
+      tickLive(); onDesk();
     });
     source.onerror = () => {
       // Une erreur réseau est retentée par le navigateur ; un refus (401) ou une erreur du serveur ferme le flux pour de bon.
@@ -1242,7 +1415,7 @@ button.on { border-color: var(--accent); color: var(--accent); }
   // ---------- Boucle ----------
   let lastMinute = -1;
   function loop() {
-    const now = new Date(); tickClock(now); tickDay(now); tickFocus(); tickNow(); tickSport(now); tickBuddy(now); tickLive(); tickPage();
+    const now = new Date(); tickClock(now); tickDay(now); tickFocus(); tickNow(); tickSport(now); renderCard(); tickBuddy(now); tickLive(); tickPage();
     // Une fois par minute, pas à chaque passage de la seconde 0.
     if (now.getMinutes() !== lastMinute) { lastMinute = now.getMinutes(); tickNext(now); renderSession(); renderMeetings(); }
   }

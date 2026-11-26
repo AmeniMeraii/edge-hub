@@ -1,3 +1,4 @@
+using EdgeHub.ClaudeHooks;
 using EdgeHub.Spotify;
 using EdgeHub.SystemStats;
 
@@ -5,16 +6,18 @@ namespace EdgeHub.Streaming;
 
 /// <summary>
 /// The JSON each <c>/api/stream</c> event carries: only what the screen shows. The network adapter's name and the drives
-/// stay on the PC. Times are in milliseconds, ready for the page's script.
+/// stay on the PC. Times are in milliseconds, ready for the page's script. <see cref="Claude"/> holds Claude Code's
+/// waiting requests and recent notices, as they are when the message is made.
 /// </summary>
-public sealed record StreamMessage(StreamStats? Stats, StreamTrack? Media)
+public sealed record StreamMessage(StreamStats? Stats, StreamTrack? Media, DeskState? Claude = null)
 {
-    public static StreamMessage From(LiveState state)
+    public static StreamMessage From(LiveState state, DeskState? claude = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         return new StreamMessage(
             state.Stats is { } stats ? StreamStats.From(stats) : null,
-            state.Media is { } track ? StreamTrack.From(track) : null);
+            state.Media is { } track ? StreamTrack.From(track) : null,
+            claude);
     }
 }
 
