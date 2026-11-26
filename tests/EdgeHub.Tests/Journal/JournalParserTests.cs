@@ -423,6 +423,21 @@ public sealed class JournalParserTests
     }
 
     [Fact]
+    public void Reads_the_time_and_ticket_of_each_report()
+    {
+        JournalDay day = JournalParser.Parse(Demo + """
+
+            ## 14:05 · DEMO-102 · Recherche par auteur
+            **Pour le daily**
+            - DEMO-102 Recherche · Fait : index · Reste : tests
+            """);
+
+        Assert.Equal(
+            [("09:10", "DEMO-101", "Export CSV de la bibliothèque"), ("14:05", "DEMO-102", "Recherche par auteur")],
+            day.Reports.Select(r => (r.Time, r.Ticket, r.Title)));
+    }
+
+    [Fact]
     public void Keeps_a_daily_line_whose_fields_are_missing()
     {
         JournalDay day = JournalParser.Parse("""

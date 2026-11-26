@@ -31,6 +31,7 @@ public static partial class JournalParser
         string[] lines = text.Split('\n');
         bool[] code = CodeLines(lines);
         var items = new List<Item>();
+        var reports = new List<Report>();
         var cursor = new Cursor();
 
         // The item a more indented bullet belongs to; a heading starts afresh.
@@ -45,6 +46,11 @@ public static partial class JournalParser
             if (Heading().Match(lines[i]) is { Success: true } heading)
             {
                 string title = heading.Groups["title"].Value.Trim();
+                if (ReportHeading().Match(WithoutBold(title)) is { Success: true } report)
+                {
+                    reports.Add(new Report(report.Groups["time"].Value, report.Groups["ticket"].Value.Trim(), report.Groups["title"].Value.Trim()));
+                }
+
                 cursor.Enter(heading.Groups["marks"].Length, Plain(title));
                 parent = null;
                 if (cursor.HeadingIsItem)
@@ -99,7 +105,7 @@ public static partial class JournalParser
                 In(Zone.TechnicalPoints).Select(ReadTechnicalPoint).ToList(),
                 In(Zone.ToRaise).Select(WithoutBold).ToList())
             : null;
-        return new JournalDay(preparation, In(Zone.Decisions).Select(ReadDecision).ToList());
+        return new JournalDay(preparation, In(Zone.Decisions).Select(ReadDecision).ToList(), reports);
     }
 
     private sealed class Item(Zone zone, string text, int indent, bool fromHeading)
@@ -364,6 +370,10 @@ public static partial class JournalParser
 
     [GeneratedRegex(@"\s+")]
     private static partial Regex Spaces();
+
+    /// <summary>A report heading: <c>09:10 · DEMO-101 · Export CSV</c>; the title may be missing.</summary>
+    [GeneratedRegex(@"^(?<time>\d{1,2}\s*[:h]\s*\d{2})\s*[·•]\s*(?<ticket>[^·•]*?)\s*(?:[·•]\s*(?<title>.*))?$")]
+    private static partial Regex ReportHeading();
 
     /// <summary>A field of a daily line written on its own: « Fait : … », « **Reste** : … ».</summary>
     [GeneratedRegex(@"^\**\s*(?:fait|reste|testable)\s*\**\s*:", RegexOptions.IgnoreCase)]
