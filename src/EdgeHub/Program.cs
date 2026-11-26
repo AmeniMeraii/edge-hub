@@ -70,6 +70,7 @@ builder.Services.AddHttpClient(IcalCalendarSource.ClientName, client => client.T
     .RemoveAllLoggers();
 builder.Services.AddSingleton<ICalendarSource, IcalCalendarSource>();
 builder.Services.AddSingleton<CalendarToday>();
+builder.Services.AddSingleton<JournalReader>();
 builder.Services.AddSingleton<JournalToday>();
 builder.Services.AddSingleton<IClaudeSessionReader, ClaudeSessionReader>();
 builder.Services.AddSingleton<ClaudeSessionMonitor>();
