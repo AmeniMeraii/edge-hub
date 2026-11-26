@@ -65,19 +65,22 @@ public sealed class EventLogTests : IDisposable
     public void Reads_only_the_end_of_a_file_far_too_large()
     {
         // A file grown out of all proportion: only its last megabytes are read, whole lines only.
+        string line = "{\"at\":\"2026-11-23T08:00:00+01:00\",\"type\":\"focus-completed\",\"task\":\"" + new string('x', 1000) + "\"}";
+        int written = (EventLog.MaxBytes / line.Length) + 500;
         using (var writer = new StreamWriter(File))
         {
-            string old = "{\"at\":\"2026-11-01T09:00:00+01:00\",\"type\":\"focus-completed\",\"task\":\"" + new string('x', 1000) + "\"}";
-            for (int i = 0; i < (EventLog.MaxBytes / old.Length) + 10; i++)
+            for (int i = 0; i < written; i++)
             {
-                writer.WriteLine(old);
+                writer.Write(line + "\n");
             }
         }
 
         EventLog log = Log();
         log.Append(new MetricEvent(Monday, MetricEventType.SportDone));
 
-        Assert.Equal([MetricEventType.SportDone], log.Read(Monday.AddDays(-1), Monday.AddDays(1)).Select(e => e.Type));
+        IReadOnlyList<MetricEvent> read = log.Read(Monday.AddDays(-1), Monday.AddDays(1));
+        Assert.InRange(read.Count, written - 600, written - 400);
+        Assert.Equal(MetricEventType.SportDone, read[^1].Type);
     }
 
     [Theory]

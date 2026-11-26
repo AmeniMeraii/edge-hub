@@ -5,10 +5,15 @@ using Microsoft.Extensions.Options;
 
 namespace EdgeHub.Journal;
 
-/// <summary>One day of the journal: whether its file exists, whether it could be read, when it was written, what it holds.</summary>
-public sealed record JournalFile(bool Found, bool Available, DateTimeOffset? WrittenAt, JournalDay Day)
+/// <summary>
+/// One day of the journal: whether its file exists, whether it could be read, when it was written, what it holds, and
+/// whether the journal folder itself exists.
+/// </summary>
+public sealed record JournalFile(bool Found, bool Available, DateTimeOffset? WrittenAt, JournalDay Day, bool FolderExists = true)
 {
     public static JournalFile Missing { get; } = new(false, true, null, JournalDay.Empty);
+
+    public static JournalFile NoFolder { get; } = new(false, true, null, JournalDay.Empty, FolderExists: false);
 }
 
 /// <summary>
@@ -37,7 +42,7 @@ public sealed class JournalReader(IOptionsMonitor<JournalOptions> options)
         var file = new FileInfo(Path.Combine(folder, day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) + ".md"));
         if (!file.Exists)
         {
-            return JournalFile.Missing;
+            return Directory.Exists(folder) ? JournalFile.Missing : JournalFile.NoFolder;
         }
 
         var writtenAt = new DateTimeOffset(file.LastWriteTimeUtc);

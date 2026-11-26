@@ -34,15 +34,17 @@ public sealed record DayMetrics(
 
 /// <summary>
 /// The week so far. <c>HeldDays</c>, the main indicator, counts the work days with the preparation done and every
-/// finished task reported, out of <c>ElapsedWorkDays</c>, the past work days and today once held;
-/// <c>PreparedBeforeDaily</c> is out of <c>PreparedBeforeDailyKnown</c>, the days that can be told; <c>WorkedDays</c>
-/// counts the work days with a journal file or an event from the screen; with a calendar, <c>SportDone</c> counts the
-/// sessions done among <c>SportPlanned</c>.
+/// finished task reported, out of <c>ElapsedWorkDays</c>; <c>PreparedDays</c> is out of <c>PreparedDaysOutOf</c>,
+/// <c>PreparedBeforeDaily</c> out of <c>PreparedBeforeDailyKnown</c>, the days that can be told, and
+/// <c>DaysWithReport</c> out of <c>WorkedDays</c>, the work days with a journal file or an event from the screen. In each
+/// ratio, today counts on both sides once it scores. With a calendar, <c>SportDone</c> counts the sessions done among
+/// <c>SportPlanned</c>.
 /// </summary>
 public sealed record WeekMetricsTotals(
     int HeldDays,
     int ElapsedWorkDays,
     int PreparedDays,
+    int PreparedDaysOutOf,
     int PreparedBeforeDaily,
     int PreparedBeforeDailyKnown,
     bool DailyTimeSet,
@@ -97,19 +99,19 @@ public sealed class WeekMetrics(
         List<DayMetrics> all = days.Select(d => d.Metrics).ToList();
         List<DayMetrics> work = all.Where(d => d.WorkDay).ToList();
 
-        // Today counts once it is held: until then it may still be.
-        List<DayMetrics> elapsed = work.Where(d => d.Day < today || d.Held).ToList();
+        // Today enters a ratio, on both sides, once it scores: until then it still may.
         bool calendarSet = calendar.IsConfigured;
         var totals = new WeekMetricsTotals(
             HeldDays: work.Count(d => d.Held),
-            ElapsedWorkDays: elapsed.Count,
+            ElapsedWorkDays: work.Count(d => d.Day < today || d.Held),
             PreparedDays: work.Count(d => d.Prepared),
+            PreparedDaysOutOf: work.Count(d => d.Day < today || d.Prepared),
             PreparedBeforeDaily: work.Count(d => d.PreparedBeforeDaily == true),
             PreparedBeforeDailyKnown: work.Count(d => d.PreparedBeforeDaily is not null),
             DailyTimeSet: daily is not null,
             Reports: all.Sum(d => d.Reports),
             DaysWithReport: work.Count(d => d.Reports > 0),
-            WorkedDays: days.Count(d => d.Metrics.WorkDay && d.Worked),
+            WorkedDays: days.Count(d => d.Metrics.WorkDay && d.Worked && (d.Metrics.Day < today || d.Metrics.Reports > 0)),
             FocusCompleted: all.Sum(d => d.FocusCompleted),
             // With a calendar, the sessions done among those planned; a day the calendar could not give is left out.
             SportDone: calendarSet ? all.Count(d => d.SportDone && d.SportPlanned == true) : all.Count(d => d.SportDone),
@@ -136,7 +138,7 @@ public sealed class WeekMetrics(
         List<MetricEvent> reminders = dayEvents.Where(e => e.Type == MetricEventType.PauseReminder).ToList();
         int pausesTaken = reminders.Count(r => dayEvents.Any(e =>
             e.Type is MetricEventType.BreakStarted or MetricEventType.TaskDone or MetricEventType.TaskSwitched
-            && e.At > r.At && e.At - r.At <= PauseWindow));
+            && e.At >= r.At && e.At - r.At <= PauseWindow));
 
         bool sportDone = dayEvents.Any(e => e.Type == MetricEventType.SportDone);
         bool workDay = day.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday);
@@ -179,16 +181,15 @@ public sealed class WeekMetrics(
     }
 
     /// <summary>
-    /// A task has its report when a report of the day has the same ticket, however both are written, or, for a task
-    /// without a ticket (a session not renamed), the same title.
+    /// A task has its report when the ticket of a report of the day is a whole word of the task (« [DEMO-101] Export »,
+    /// « J-3 : livrer DEMO-101 »), or, for a task without a ticket (a session not renamed), when the report has the same
+    /// title.
     /// </summary>
-    private static bool Reported(string task, IReadOnlyList<Report> reports)
-    {
-        string ticket = LocalDays.TicketOf(task);
-        return reports.Any(r =>
-            (ticket.Length > 0 && string.Equals(LocalDays.TicketOf(r.Ticket), ticket, StringComparison.OrdinalIgnoreCase))
-            || string.Equals(r.Title.Trim(), task.Trim(), StringComparison.OrdinalIgnoreCase));
-    }
+    private static bool Reported(string task, IReadOnlyList<Report> reports) =>
+        !string.IsNullOrWhiteSpace(task)
+        && reports.Any(r =>
+            LocalDays.ContainsWord(task, LocalDays.TicketOf(r.Ticket))
+            || (r.Title.Length > 0 && string.Equals(r.Title.Trim(), task.Trim(), StringComparison.OrdinalIgnoreCase)));
 
     /// <summary>A day's metrics, and whether it was worked (a journal file or an event).</summary>
     private sealed record Day(DayMetrics Metrics, bool Worked);

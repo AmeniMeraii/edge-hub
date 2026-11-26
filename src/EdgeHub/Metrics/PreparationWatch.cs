@@ -23,16 +23,30 @@ public sealed partial class PreparationWatch(JournalReader journal, EventLog eve
         TimeZoneInfo zone = time.LocalTimeZone;
         DateTimeOffset now = TimeZoneInfo.ConvertTime(time.GetUtcNow(), zone);
         DateOnly today = DateOnly.FromDateTime(now.DateTime);
+        if (_noted == today)
+        {
+            return;
+        }
+
+        // A journal or an events file that cannot be read yet says nothing: the first look waits for a real one.
+        JournalFile? file = await journal.ReadAsync(today, cancellationToken).ConfigureAwait(false);
+        if (file is not { Available: true, FolderExists: true })
+        {
+            return;
+        }
+
+        bool prepared = file.Day.Preparation is not null;
+        bool noted = prepared
+            && events.Read(LocalDays.StartOf(today, zone), LocalDays.StartOf(today.AddDays(1), zone)).Any(e => e.Type == MetricEventType.PreparationSeen);
         bool firstLook = _firstLook;
         _firstLook = false;
-        if (_noted == today || (await journal.ReadAsync(today, cancellationToken).ConfigureAwait(false))?.Day.Preparation is null)
+        if (!prepared)
         {
             return;
         }
 
         // Noted already, before a restart of the service? Already there at the first look after a start: when it came
         // is unknown, and noting it now would count it late.
-        bool noted = events.Read(LocalDays.StartOf(today, zone), LocalDays.StartOf(today.AddDays(1), zone)).Any(e => e.Type == MetricEventType.PreparationSeen);
         if (!noted && !firstLook)
         {
             events.Append(new MetricEvent(now, MetricEventType.PreparationSeen));

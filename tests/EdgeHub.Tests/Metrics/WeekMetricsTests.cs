@@ -191,6 +191,47 @@ public sealed class WeekMetricsTests : IDisposable
         Assert.Equal((4, 4, true), (tuesday.TasksDone, tuesday.TasksReported, tuesday.Held));
     }
 
+    [Theory]
+    [InlineData("#42 Corriger l'encodage utf-8", "#42", true)]
+    [InlineData("J-3 : livrer DEMO-101", "DEMO-101", true)]
+    [InlineData("Revue DEMO-1 avant DEMO-2", "DEMO-2", true)]
+    [InlineData("feat/DEMO-101-export", "DEMO-101", true)]
+    [InlineData("phase-01 Export", "phase-0", false)]
+    [InlineData("DEMO-10 Export", "DEMO-1", false)]
+    public async Task Finds_the_reports_ticket_as_a_whole_word_of_the_task(string task, string ticket, bool reported)
+    {
+        Journal(25, prepared: true, $"## 10:00 · {ticket} · Un titre inventé");
+        Events().Append(new MetricEvent(At(25, 11), MetricEventType.TaskDone, task));
+
+        DayMetrics wednesday = (await Week().GetAsync(Ct)).Days[2];
+
+        Assert.Equal(reported, wednesday.Held);
+    }
+
+    [Fact]
+    public async Task A_task_without_text_has_no_report()
+    {
+        Journal(25, prepared: true, "## 10:00 · DEMO-110");
+        Events().Append(new MetricEvent(At(25, 11), MetricEventType.TaskDone));
+
+        Assert.False((await Week().GetAsync(Ct)).Days[2].Held);
+    }
+
+    [Fact]
+    public async Task Counts_today_in_each_ratio_only_once_it_scores()
+    {
+        // Thursday 11:00, no daily time: prepared, a finished task without a report yet.
+        File.WriteAllText(Path.Combine(_journal.FullName, "2026-11-26.md"), "# Préparation du jour\n## Daily\n- DEMO-101 Export · Fait : a\n");
+        _time.Advance(TimeSpan.FromHours(-4));
+
+        WeekMetricsTotals totals = (await Week(Options(dailyTime: null)).GetAsync(Ct)).Totals!;
+
+        // Held: Monday of Monday–Wednesday, today not yet. Prepared: today counts, on both sides. Report: not yet today.
+        Assert.Equal((1, 3), (totals.HeldDays, totals.ElapsedWorkDays));
+        Assert.Equal((3, 4), (totals.PreparedDays, totals.PreparedDaysOutOf));
+        Assert.Equal((1, 3), (totals.DaysWithReport, totals.WorkedDays));
+    }
+
     [Fact]
     public async Task Leaves_today_out_until_it_can_be_told()
     {

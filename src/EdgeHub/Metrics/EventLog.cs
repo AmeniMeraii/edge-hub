@@ -75,8 +75,34 @@ public sealed class EventLog(IOptionsMonitor<MetricsOptions> options)
         return true;
     }
 
+    /// <summary>
+    /// Appends the event unless one with the same id is already there between <paramref name="from"/> and
+    /// <paramref name="to"/>, both under the same lock: two screens sending it at once keep it once.
+    /// </summary>
+    public bool AppendOnce(MetricEvent metricEvent, DateTimeOffset from, DateTimeOffset to)
+    {
+        ArgumentNullException.ThrowIfNull(metricEvent);
+        lock (_gate)
+        {
+            if (metricEvent.Id is { } id && ReadUnlocked(from, to).Any(e => string.Equals(e.Id, id, StringComparison.Ordinal)))
+            {
+                return false;
+            }
+
+            return Append(metricEvent);
+        }
+    }
+
     /// <summary>The events from <paramref name="from"/> included to <paramref name="to"/> excluded, in the file's order.</summary>
     public IReadOnlyList<MetricEvent> Read(DateTimeOffset from, DateTimeOffset to)
+    {
+        lock (_gate)
+        {
+            return ReadUnlocked(from, to);
+        }
+    }
+
+    private List<MetricEvent> ReadUnlocked(DateTimeOffset from, DateTimeOffset to)
     {
         if (options.CurrentValue.ResolvedFolder() is not { } folder)
         {
@@ -84,16 +110,12 @@ public sealed class EventLog(IOptionsMonitor<MetricsOptions> options)
         }
 
         string path = Path.Combine(folder, "events.jsonl");
-        string[] lines;
-        lock (_gate)
+        if (!File.Exists(path))
         {
-            if (!File.Exists(path))
-            {
-                return [];
-            }
-
-            lines = ReadEnd(path);
+            return [];
         }
+
+        string[] lines = ReadEnd(path);
 
         var events = new List<MetricEvent>();
         foreach (string line in lines)
@@ -116,10 +138,6 @@ public sealed class EventLog(IOptionsMonitor<MetricsOptions> options)
 
         return events;
     }
-
-    /// <summary>The ids of the events of the period, to recognise an event sent twice.</summary>
-    public bool Contains(string id, DateTimeOffset from, DateTimeOffset to) =>
-        Read(from, to).Any(e => string.Equals(e.Id, id, StringComparison.Ordinal));
 
     private static bool EndsWithLineBreak(string path)
     {

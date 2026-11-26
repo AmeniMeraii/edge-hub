@@ -12,10 +12,7 @@ internal static partial class LocalDays
         return new DateTimeOffset(midnight, zone.GetUtcOffset(midnight));
     }
 
-    /// <summary>
-    /// The ticket of a task or a report: the first word shaped like a ticket (« DEMO-101 », « phase-0 »), wherever it
-    /// is (« [DEMO-101] Export », « DEMO-101: export »); else the first word without its punctuation.
-    /// </summary>
+    /// <summary>The ticket of a report: its first word, without the punctuation around it (« DEMO-101: » → DEMO-101).</summary>
     public static string TicketOf(string? text)
     {
         if (string.IsNullOrWhiteSpace(text))
@@ -23,15 +20,15 @@ internal static partial class LocalDays
             return "";
         }
 
-        if (TicketShaped().Match(text) is { Success: true } ticket)
-        {
-            return ticket.Value;
-        }
-
         string first = text.Trim().Split(' ', 2, StringSplitOptions.RemoveEmptyEntries)[0];
         return first.Trim('[', ']', '(', ')', ':', ',', ';', '.', '!', '?', '«', '»', '"', '\'', '*');
     }
 
-    [GeneratedRegex(@"(?<![\p{L}\p{N}_-])\p{L}[\p{L}\p{N}_]*-\d+(?![\p{L}\p{N}_-])")]
-    private static partial Regex TicketShaped();
+    /// <summary>
+    /// The word appears whole in the text, whatever the case: « DEMO-101 » is in « [DEMO-101] Export » and in
+    /// « feat/DEMO-101-export », not in « DEMO-1010 »; « phase-0 » is not in « phase-01 ».
+    /// </summary>
+    public static bool ContainsWord(string text, string word) =>
+        word.Length > 0
+        && Regex.IsMatch(text, $@"(?<![\p{{L}}\p{{N}}]){Regex.Escape(word)}(?![\p{{L}}\p{{N}}])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
 }

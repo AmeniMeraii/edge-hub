@@ -72,11 +72,33 @@ public sealed class MetricsEndpointTests : IDisposable
     {
         await using var factory = new MetricsFactory(_folder.FullName);
 
-        using HttpResponseMessage response = await PostAsync(factory, new { type = "focus-completed", at = DateTimeOffset.UtcNow.AddMinutes(30) });
+        using HttpResponseMessage response = await PostAsync(factory, new { type = "focus-completed", at = DateTimeOffset.UtcNow.AddHours(3) });
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         using JsonDocument line = JsonDocument.Parse(Assert.Single(await File.ReadAllLinesAsync(Events, Ct)));
         Assert.True(line.RootElement.GetProperty("at").GetDateTimeOffset() <= DateTimeOffset.UtcNow);
+    }
+
+    [Fact]
+    public async Task Keeps_an_event_sent_twice_at_once_once()
+    {
+        await using var factory = new MetricsFactory(_folder.FullName);
+
+        await Task.WhenAll(Enumerable.Range(0, 20).Select(_ => PostAsync(factory, new { type = "focus-completed", id = "same-event" })));
+
+        Assert.Single(await File.ReadAllLinesAsync(Events, Ct));
+    }
+
+    [Fact]
+    public async Task Keeps_the_time_of_a_screen_slightly_ahead()
+    {
+        await using var factory = new MetricsFactory(_folder.FullName);
+        DateTimeOffset ahead = DateTimeOffset.UtcNow.AddMinutes(20);
+
+        await PostAsync(factory, new { type = "focus-completed", at = ahead });
+
+        using JsonDocument line = JsonDocument.Parse(Assert.Single(await File.ReadAllLinesAsync(Events, Ct)));
+        Assert.Equal(ahead, line.RootElement.GetProperty("at").GetDateTimeOffset(), TimeSpan.FromSeconds(1));
     }
 
     [Fact]

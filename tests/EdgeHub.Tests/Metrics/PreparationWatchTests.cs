@@ -79,6 +79,43 @@ public sealed class PreparationWatchTests : IDisposable
     }
 
     [Fact]
+    public async Task Keeps_its_first_look_until_it_could_read_the_journal()
+    {
+        // The journal folder appears after the start, the preparation already in it: when it came is unknown.
+        string later = Path.Combine(_journal.FullName, "later");
+        var watch = new PreparationWatch(
+            new JournalReader(new FixedOptionsMonitor<JournalOptions>(new JournalOptions { Folder = later })),
+            Events(),
+            _time,
+            NullLogger<PreparationWatch>.Instance);
+        await watch.RecordOnceAsync(Ct);
+
+        Directory.CreateDirectory(later);
+        await File.WriteAllTextAsync(Path.Combine(later, "2026-11-26.md"), "# Préparation du 26/11/2026\n## Daily\n- DEMO-101 Export · Fait : a\n", Ct);
+        await watch.RecordOnceAsync(Ct);
+
+        Assert.Empty(Seen());
+    }
+
+    [Fact]
+    public async Task Keeps_its_first_look_until_it_could_read_the_events()
+    {
+        await File.WriteAllTextAsync(Today, "# Préparation du 26/11/2026\n## Daily\n- DEMO-101 Export · Fait : a\n", Ct);
+        string events = Path.Combine(_metrics.FullName, "events.jsonl");
+        await File.WriteAllTextAsync(events, "", Ct);
+        PreparationWatch watch = Watch();
+        using (new FileStream(events, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+        {
+            await Assert.ThrowsAnyAsync<IOException>(() => watch.RecordOnceAsync(Ct));
+        }
+
+        _time.Advance(TimeSpan.FromMinutes(1));
+        await watch.RecordOnceAsync(Ct);
+
+        Assert.Empty(Seen());
+    }
+
+    [Fact]
     public async Task Notes_the_preparation_of_each_day()
     {
         PreparationWatch watch = Watch();
