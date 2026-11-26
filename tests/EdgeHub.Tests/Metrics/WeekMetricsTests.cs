@@ -179,12 +179,12 @@ public sealed class WeekMetricsTests : IDisposable
             ## 11:30 · DEMO-103 Tri par date
             ## 12:00 · DEMO-104 · Couvertures
             ## 13:00 · demo-105 · Export Excel
-            ## 14:00 · phase-0 · Edge Hub phase 0
+            ## 14:00 · phase-0 · Bookshelf phase 0
             """);
         EventLog log = Events();
         log.Append(new MetricEvent(At(24, 12, 10), MetricEventType.TaskDone, "[DEMO-104] Couvertures"));
         log.Append(new MetricEvent(At(24, 13, 10), MetricEventType.TaskDone, "DEMO-105: export Excel"));
-        log.Append(new MetricEvent(At(24, 14, 10), MetricEventType.TaskDone, "Edge Hub phase 0"));
+        log.Append(new MetricEvent(At(24, 14, 10), MetricEventType.TaskDone, "Bookshelf phase 0"));
 
         DayMetrics tuesday = (await Week().GetAsync(Ct)).Days[1];
 
