@@ -2,9 +2,9 @@
 
 `settings.example.json` holds the `hooks` block that sends Claude Code's permission requests and notifications to Edge Hub, so they can be answered from the tablet.
 
-**Do not install it yet.** The service's routes are in place, but the screen's card that shows a request comes next in phase 4c: until then a request would wait on a tablet that cannot show it.
+It only matters once the tablet reaches the service (`Server:ListenOnNetwork` and a firewall rule for the Private profile, see `appsettings.example.json`). Until a screen is open on another device, every request gets no decision at once and Claude Code asks on the PC as usual.
 
-## Install (end of phase 4c)
+## Install
 
 1. Make the hooks' token, in your own terminal: `dotnet run --project src/EdgeHub -- --new-hook-token` (or `EdgeHub.exe --new-hook-token`). It prints the token and the hash to keep on the PC.
 2. Keep the hash as the command says (`ClaudeCode:HookTokenHash`, in user secrets or `appsettings.Local.json`), then restart Edge Hub.
