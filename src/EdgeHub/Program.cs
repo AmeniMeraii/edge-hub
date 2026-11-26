@@ -3,6 +3,7 @@ using EdgeHub.ClaudeSessions;
 using EdgeHub.Configuration;
 using EdgeHub.ConsoleMode;
 using EdgeHub.Journal;
+using EdgeHub.Metrics;
 using EdgeHub.LogFiles;
 using EdgeHub.Security;
 using EdgeHub.Spotify;
@@ -76,6 +77,10 @@ builder.Services.AddSingleton<IClaudeSessionReader, ClaudeSessionReader>();
 builder.Services.AddSingleton<ClaudeSessionMonitor>();
 builder.Services.AddHostedService(services => services.GetRequiredService<ClaudeSessionMonitor>());
 builder.Services.AddSingleton<ClaudeCurrent>();
+builder.Services.AddSingleton<EventLog>();
+builder.Services.AddSingleton<EventRecorder>();
+builder.Services.AddSingleton<WeekMetrics>();
+builder.Services.AddHostedService<PreparationWatch>();
 builder.Services.AddSingleton<LiveStateHub>();
 builder.Services.AddHostedService<LiveStateService>();
 builder.Services.AddHealthChecks();
@@ -93,6 +98,10 @@ app.MapGet("/api/stream", (LiveStateHub hub, IHostApplicationLifetime lifetime, 
 app.MapGet("/api/calendar/today", (CalendarToday today, CancellationToken cancellationToken) => today.GetAsync(cancellationToken));
 app.MapGet("/api/journal/today", (JournalToday journal, CancellationToken cancellationToken) => journal.GetAsync(cancellationToken));
 app.MapGet("/api/claude/current", (ClaudeCurrent current) => current.Get());
+app.MapGet("/api/metrics/week", (WeekMetrics week, CancellationToken cancellationToken) => week.GetAsync(cancellationToken));
+// An event is a few dozen bytes: a larger body is refused before it is read.
+app.MapPost("/api/events", (EventRequest request, EventRecorder recorder) => recorder.Record(request))
+    .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(4096));
 
 await app.RunAsync();
 return 0;
