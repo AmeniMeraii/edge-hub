@@ -13,7 +13,7 @@ public sealed class LogFileOptionsTests
 {
     private static LogFileOptions Bind(Dictionary<string, string?> values)
     {
-        values["Security:Token"] = EdgeHubFactory.Token;
+        values["Security:TokenHash"] = EdgeHub.Security.AccessToken.HashOf(EdgeHubFactory.Token);
         IConfiguration settings = new ConfigurationBuilder().AddInMemoryCollection(values).Build();
         using ServiceProvider services = new ServiceCollection()
             .AddSingleton(settings)
@@ -56,7 +56,7 @@ public sealed class LogFileOptionsTests
         // The log file is created with the logging itself: a wrong value must not break logging before the startup
         // check can report it.
         IConfiguration settings = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?> { ["Security:Token"] = EdgeHubFactory.Token, ["Logs:RetainedDays"] = "0" })
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Security:TokenHash"] = EdgeHub.Security.AccessToken.HashOf(EdgeHubFactory.Token), ["Logs:RetainedDays"] = "0" })
             .Build();
         using ServiceProvider services = new ServiceCollection()
             .AddSingleton(settings)

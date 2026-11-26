@@ -15,20 +15,15 @@ dotnet test
 
 ## Run the service
 
-Give the service an access token once, outside git: 32 characters or more, only letters, digits, `-` and `_`, since it travels in an address. This PowerShell line prints a suitable random one:
+Make the tablet's access token once, in your own terminal:
 
 ```powershell
-$bytes = New-Object byte[] 24; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes); ($bytes | ForEach-Object { $_.ToString('x2') }) -join ''
+dotnet run --project src/EdgeHub -- --new-token
 ```
 
-During development, keep it in user secrets, then run the service:
+It prints a new token and its SHA-256 hash, once. The PC keeps only the hash: during development, in user secrets, with the command it prints (`dotnet user-secrets set Security:TokenHash <hash> --project src/EdgeHub`), then run the service with `dotnet run --project src/EdgeHub`. The token itself goes only to the tablet, in the address below; keep it nowhere else, so that an agent reading the PC's files (Claude Code, for one) can never answer a request in the tablet's place. A lost token is replaced by running the command again.
 
-```powershell
-dotnet user-secrets set Security:Token "<token>" --project src/EdgeHub
-dotnet run --project src/EdgeHub
-```
-
-A published service reads `appsettings.Local.json` next to `EdgeHub.exe` instead (user secrets only exist in development). `src/EdgeHub/appsettings.example.json` explains every setting, including the one that opens the service to the tablet; by default it only answers on this PC.
+A published service reads `appsettings.Local.json` next to `EdgeHub.exe` instead (user secrets only exist in development); `EdgeHub.exe --new-token` prints the same. `src/EdgeHub/appsettings.example.json` explains every setting, including the one that opens the service to the tablet; by default it only answers on this PC.
 
 Open `http://<PC address>:5080/?k=<token>` once on the screen: the token moves into a cookie and the address is cleaned. The page then receives the PC's stats and the current track every second from `/api/stream`. Prefer opening it on the tablet rather than in the PC's own browser: cookies are not tied to a port, so a browser on the PC would also send this one to other local development servers.
 

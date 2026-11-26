@@ -10,6 +10,12 @@ using EdgeHub.Spotify;
 using EdgeHub.Streaming;
 using EdgeHub.SystemStats;
 
+if (args.Contains(TokenCommand.Argument))
+{
+    Console.Write(TokenCommand.Text(AccessToken.Create()));
+    return 0;
+}
+
 if (args.Contains("--console"))
 {
     using var stop = new CancellationTokenSource();

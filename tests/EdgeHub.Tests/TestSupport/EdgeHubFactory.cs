@@ -22,6 +22,7 @@ public class EdgeHubFactory : WebApplicationFactory<Program>
 
     internal FakeMediaController Media { get; } = new(accept: true);
 
+    /// <summary>The tablet's token; the service is given only its hash, as in real use.</summary>
     protected virtual string? ConfiguredToken => Token;
 
     /// <summary>Settings a test adds or replaces.</summary>
@@ -42,7 +43,7 @@ public class EdgeHubFactory : WebApplicationFactory<Program>
 
             var settings = new Dictionary<string, string?>
             {
-                ["Security:Token"] = ConfiguredToken,
+                ["Security:TokenHash"] = ConfiguredToken is null ? null : EdgeHub.Security.AccessToken.HashOf(ConfiguredToken),
                 // Tests never write into the developer's logs or metrics, nor read their journal or Claude Code sessions.
                 ["Logs:Folder"] = "",
                 ["Journal:Folder"] = "",

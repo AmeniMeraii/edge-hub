@@ -12,10 +12,10 @@ namespace EdgeHub.Tests.Configuration;
 /// </summary>
 public sealed class StartupValidationTests
 {
-    private static void ValidateAtStartup(string? token)
+    private static void ValidateAtStartup(string? tokenHash, string? clearToken = null)
     {
         IConfiguration settings = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?> { ["Security:Token"] = token })
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Security:TokenHash"] = tokenHash, ["Security:Token"] = clearToken })
             .Build();
         using ServiceProvider services = new ServiceCollection()
             .AddSingleton(settings)
@@ -28,18 +28,28 @@ public sealed class StartupValidationTests
     [Theory]
     [InlineData(null)]
     [InlineData("")]
-    [InlineData("too-short-token")]
-    [InlineData("a+token+that+breaks+in+an+address+0123456789")]
-    public void The_service_refuses_to_start_without_a_valid_token(string? token)
+    [InlineData("0123456789abcdef")]
+    [InlineData("a-token-in-clear-instead-of-its-hash-0123456789-0123456789-01234")]
+    public void The_service_refuses_to_start_without_the_hash_of_a_token(string? tokenHash)
     {
-        var failure = Assert.Throws<OptionsValidationException>(() => ValidateAtStartup(token));
+        var failure = Assert.Throws<OptionsValidationException>(() => ValidateAtStartup(tokenHash));
 
-        Assert.Contains("Security:Token", failure.Message, StringComparison.Ordinal);
+        Assert.Contains("Security:TokenHash", failure.Message, StringComparison.Ordinal);
+        Assert.Contains("--new-token", failure.Message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void A_long_url_safe_token_is_accepted()
+    public void The_hash_of_a_token_is_accepted()
     {
-        ValidateAtStartup(EdgeHubFactory.Token);
+        ValidateAtStartup(EdgeHub.Security.AccessToken.HashOf(EdgeHubFactory.Token));
+    }
+
+    [Fact]
+    public void A_token_kept_in_clear_is_refused_with_how_to_replace_it()
+    {
+        var failure = Assert.Throws<OptionsValidationException>(() => ValidateAtStartup(EdgeHub.Security.AccessToken.HashOf(EdgeHubFactory.Token), EdgeHubFactory.Token));
+
+        Assert.Contains("Security:Token n'est plus accepté", failure.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(EdgeHubFactory.Token, failure.Message, StringComparison.Ordinal);
     }
 }

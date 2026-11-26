@@ -26,7 +26,7 @@ public sealed class AccessTokenMiddleware(RequestDelegate next, IOptionsMonitor<
     public async Task InvokeAsync(HttpContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        string expected = options.CurrentValue.Token;
+        string expected = options.CurrentValue.TokenHash;
         HttpRequest request = context.Request;
         bool isApi = request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase);
 

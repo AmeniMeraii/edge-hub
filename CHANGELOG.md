@@ -6,6 +6,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Changed
+- The PC keeps only the SHA-256 hash of the tablet's token (`Security:TokenHash`), made with `--new-token`; a token kept in clear (`Security:Token`) is refused at startup with how to replace it.
+- The screen's fonts are served by the PC instead of Google Fonts: the screen loads nothing from the internet.
+
 ### Added
 - « Ma semaine » on the meetings page, from `/api/metrics/week`: days held (preparation done and each finished task reported with the same ticket), preparation before the daily (`Metrics:DailyTime`), days with a report, focus sessions, sport sessions done out of those planned, pause reminders followed. The screen sends its events to `POST /api/events`, kept in `%LOCALAPPDATA%\EdgeHub\events.jsonl`, and keeps those it could not send on the tablet for later; nothing leaves the two. The PC notes the first time it sees the day's preparation. `Metrics:Enabled` turns it all off.
 - Meetings page, reached by swiping or with the dots at the bottom: the morning's preparation from the activity journal (daily per ticket, technical choices, points to raise, state of the previous decisions) and the day's meeting decisions, from `/api/journal/today`; « Lance /prep-reunions dans Claude Code » without a preparation. The day's file is read again as soon as it changes.
@@ -24,9 +28,6 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - Optional Claude Code integration: `/rapport`, `/prep-reunions` and `/decisions` commands, example hooks configuration with its install notes.
 - The original single-file screen, imported unchanged and now served from `src/EdgeHub/wwwroot/index.html`.
 - Observed format of Claude Code session files, as groundwork for the session reader (`docs/formats/claude-code-sessions.md`).
-
-### Changed
-- The screen's fonts are served by the PC instead of Google Fonts: the screen loads nothing from the internet.
 
 ### Fixed
 - The screen's day, and its count of focus sessions, now change at local midnight; the day used to change at 1 or 2 a.m. in Paris (UTC date).
