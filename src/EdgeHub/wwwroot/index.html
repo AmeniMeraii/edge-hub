@@ -276,14 +276,15 @@ button.on { border-color: var(--accent); color: var(--accent); }
   grid-template-rows: auto minmax(0, 1fr);
   grid-template-areas: "head head head" "daily tech dec";
 }
-.meet-head { grid-area: head; flex-direction: row; align-items: center; gap: 16px; }
-.meet-head .session { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+/* L'en-tête passe à la ligne plutôt que d'écraser la session quand un statut s'allonge (PC injoignable). */
+.meet-head { grid-area: head; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.meet-head .session { flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .session-name { font-family: var(--font-display); font-weight: 600; font-size: clamp(18px, 3.6vh, 28px); line-height: 1.15; overflow-wrap: anywhere; }
 .session-name.empty { font-family: var(--font-body); font-weight: 400; font-size: 15px; color: var(--muted); }
 .session-meta, .journal-status { font-size: 13px; color: var(--muted); }
-.journal-status { text-align: right; max-width: 40%; }
+.journal-status { flex: 0 1 240px; min-width: 0; margin-left: auto; text-align: right; }
 /* Ma semaine : les indicateurs de docs/product/indicateurs.md, mesurés sur le PC */
-.week { flex: none; max-width: 46%; display: flex; flex-direction: column; gap: 4px; }
+.week { flex: 0 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .week-line { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--muted); }
 .week-line b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
 .week-line .main b { color: var(--ok); }
@@ -426,7 +427,7 @@ button.on { border-color: var(--accent); color: var(--accent); }
       <div class="now-hint" id="nowHint"></div>
     </div>
     <form id="nowForm">
-      <input id="nowInput" type="text" placeholder="Une seule tâche…" autocomplete="off" aria-label="Tâche en cours">
+      <input id="nowInput" type="text" maxlength="200" placeholder="Une seule tâche…" autocomplete="off" aria-label="Tâche en cours">
       <button type="submit">Commencer</button>
     </form>
     <div class="acts" id="nowActs" hidden>
@@ -559,10 +560,15 @@ button.on { border-color: var(--accent); color: var(--accent); }
   // L'écran note ce qui se passe (focus terminé, pause, rappel, tâche terminée ou changée, séance faite) et l'envoie au
   // PC, qui le garde dans son fichier d'événements. Ce qui n'a pas pu partir (PC injoignable) attend et repart plus tard,
   // avec son heure d'origine ; le PC refuse ce qui date de plus de 8 jours.
-  let eventQueue = [].concat(store.get("events", []) || []).slice(-200), sendingEvents = false;
-  function sendEvent(type, extra) {
-    eventQueue = [...eventQueue, { type, at: new Date().toISOString(), ...(extra || {}) }].slice(-200);
-    store.set("events", eventQueue);
+  // La file vit dans localStorage, relue à chaque fois : deux onglets ne s'écrasent pas. Chaque événement a un
+  // identifiant, pour que le PC le garde une seule fois même s'il arrive deux fois.
+  const queue = () => [].concat(store.get("events", []) || []).filter(e => e && typeof e.type === "string");
+  let sendingEvents = false;
+  const eventId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  function sendEvent(type, extra, at) {
+    const event = { id: eventId(), type, at: (at || new Date()).toISOString(), ...(extra || {}) };
+    if (typeof event.task === "string") event.task = event.task.slice(0, 200);
+    store.set("events", [...queue(), event].slice(-200));
     flushEvents();
   }
   async function flushEvents() {
@@ -570,11 +576,15 @@ button.on { border-color: var(--accent); color: var(--accent); }
     sendingEvents = true;
     let sent = 0;
     try {
-      while (eventQueue.length) {
-        const response = await fetch("/api/events", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(eventQueue[0]) });
-        // Accepté, ou refusé pour de bon (trop ancien, inconnu) : il quitte la file. Sinon (jeton, PC), on réessaiera.
-        if (!response.ok && response.status !== 400) break;
-        eventQueue = eventQueue.slice(1); store.set("events", eventQueue); sent++;
+      for (let next = queue()[0]; next; next = queue()[0]) {
+        const response = await fetch("/api/events", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(next) });
+        // Accepté, ou refusé pour de bon (trop ancien, trop gros, inconnu) : il quitte la file. Jeton refusé, page d'un
+        // autre site, délai dépassé, trop de demandes ou erreur du PC : on réessaiera.
+        const retry = !response.ok && (response.status >= 500 || [401, 403, 408, 429].includes(response.status));
+        if (retry) break;
+        const rest = queue(), done = rest.findIndex(e => (next.id ? e.id === next.id : JSON.stringify(e) === JSON.stringify(next)));
+        if (done >= 0) rest.splice(done, 1);
+        store.set("events", rest); sent++;
       }
     } catch {}
     sendingEvents = false;
@@ -605,6 +615,11 @@ button.on { border-color: var(--accent); color: var(--accent); }
   const fmtH = h => `${Math.floor(h)}:${pad(Math.round((h % 1) * 60))}`;
   function renderHoursBtn() { const [s, e] = presets[hoursIdx]; $("btnHours").textContent = `${fmtH(s)} – ${fmtH(e)}`; $("dayStart").textContent = fmtH(s); $("dayEnd").textContent = fmtH(e); }
   $("btnHours").onclick = () => { hoursIdx = (hoursIdx + 1) % presets.length; store.set("hours", hoursIdx); renderHoursBtn(); tickDay(new Date()); };
+  // Heures de travail en semaine, d'après le réglage de la tuile Journée.
+  function workingNow(now) {
+    const [s, e] = presets[hoursIdx], h = now.getHours() + now.getMinutes() / 60, wd = now.getDay();
+    return wd !== 0 && wd !== 6 && h >= s && h < e;
+  }
   function tickDay(now) {
     const [s, e] = presets[hoursIdx];
     const h = now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600;
@@ -663,8 +678,10 @@ button.on { border-color: var(--accent); color: var(--accent); }
     if (!endAt) return;
     remain = (endAt - Date.now()) / 1000;
     if (remain <= 0) {
+      // Daté de sa vraie fin : la tablette peut s'être endormie entre-temps.
+      const endedAt = new Date(endAt);
       endAt = null; remain = 0; beep();
-      if (!isBreak) { sessions.n++; store.set("sessions", sessions); renderCount(); buddyCheer(4000); sendEvent("focus-completed"); toast("Session terminée. Pause de 5 minutes ?"); setMode(5, true); }
+      if (!isBreak) { sessions.n++; store.set("sessions", sessions); renderCount(); buddyCheer(4000); sendEvent("focus-completed", null, endedAt); toast("Session terminée. Pause de 5 minutes ?"); setMode(5, true); }
       else { toast("Pause terminée."); setMode(25, false); }
       return;
     }
@@ -679,7 +696,11 @@ button.on { border-color: var(--accent); color: var(--accent); }
   $("fStart").onclick = () => {
     try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); audio.resume && audio.resume(); } catch {}
     if (endAt) { remain = (endAt - Date.now()) / 1000; endAt = null; }
-    else { endAt = Date.now() + remain * 1000; if (isBreak) sendEvent("break-started"); }
+    else {
+      // Une pause compte quand elle commence, pas quand elle reprend après avoir été arrêtée.
+      if (isBreak && remain >= dur) sendEvent("break-started");
+      endAt = Date.now() + remain * 1000;
+    }
     renderFocus();
   };
   $("fReset").onclick = () => setMode(dur / 60, isBreak);
@@ -738,7 +759,8 @@ button.on { border-color: var(--accent); color: var(--accent); }
     const long = v && el >= v * 60000;
     $("nowTile").classList.toggle("long", !!long);
     $("nowHint").textContent = long ? "Pause : bois un verre d'eau et lève-toi 2 minutes." : "";
-    if (v && Date.now() - (cur.lastNudge || cur.start) >= v * 60000) {
+    // Le rappel ne sonne, et ne compte, qu'aux heures de travail en semaine : pas pour une tâche laissée le soir.
+    if (v && Date.now() - (cur.lastNudge || cur.start) >= v * 60000 && workingNow(new Date())) {
       cur.lastNudge = Date.now(); store.set("now", cur);
       beep(); toast(`${v} minutes sur la même tâche : petite pause ?`); sendEvent("pause-reminder");
     }
@@ -916,14 +938,17 @@ button.on { border-color: var(--accent); color: var(--accent); }
   }
   function renderWeek() {
     const box = $("weekBox"), line = $("weekLine");
-    box.hidden = !(week && week.enabled && week.totals);
+    // Une semaine qui n'est pas celle de cet écran (le PC en veille un lundi matin) n'est pas affichée.
+    const current = week && week.from && week.to && week.from <= todayKey() && todayKey() <= week.to;
+    box.hidden = !(current && week.enabled && week.totals);
     if (box.hidden) return;
     const t = week.totals, parts = [];
     const add = (label, value, cls) => { const span = el("span", cls); span.append(document.createTextNode(`${label} `), el("b", null, value)); parts.push(span); };
     add("Jours tenus", `${t.heldDays}/${t.elapsedWorkDays}`, "main");
-    if (t.dailyTimeSet) add("Préparation avant le daily", `${t.preparedBeforeDaily}/${t.elapsedWorkDays}`);
+    // Sur les seuls jours où l'on peut le dire : le PC doit avoir vu la préparation arriver.
+    if (t.dailyTimeSet) add("Préparation avant le daily", `${t.preparedBeforeDaily}/${t.preparedBeforeDailyKnown}`);
     else add("Préparation", `${t.preparedDays}/${t.elapsedWorkDays}`);
-    add("Rapports", `${t.reports}`);
+    add("Jours avec rapport", `${t.daysWithReport}/${t.workedDays}`);
     add("Focus", `${t.focusCompleted}`);
     add("Sport", t.sportPlanned == null ? `${t.sportDone}` : `${t.sportDone}/${t.sportPlanned}`);
     if (t.pauseReminders) add("Pauses", `${t.pausesTaken}/${t.pauseReminders}`);
