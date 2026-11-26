@@ -116,3 +116,21 @@ Une entrée par choix important : le contexte, les options, la décision et ce q
 - **Options** : garder Google Fonts ; servir les fichiers depuis le PC.
 - **Décision** : les servir depuis le PC.
 - **Conséquences** : l'écran s'affiche pareil sans internet, et la tablette ne contacte plus Google à chaque ouverture. Les deux polices sont sous licence libre (SIL Open Font License) : leurs fichiers peuvent aller dans le dépôt, avec la licence. IBM réserve le nom « Plex » : seuls ses fichiers d'origine, non modifiés, gardent ce nom, donc ceux d'IBM Plex Sans viennent d'IBM et pas de Google Fonts.
+
+## D20 · La tâche venue de Claude Code démarre à son arrivée sur l'écran · 25/11/2026
+- **Contexte** : « Une seule chose » se remplit avec le nom de la session Claude Code active. Une session peut durer toute une journée : celle de la phase 4 avait commencé la veille.
+- **Options** : compter le temps depuis le premier message de la session ; le compter depuis l'arrivée de la tâche sur l'écran.
+- **Décision** : depuis l'arrivée de la tâche sur l'écran. La page Réunions garde, elle, la durée de la session.
+- **Conséquences** : le rappel de pause garde son sens et ne sonne pas dès l'ouverture de l'écran. Si l'écran ne voit pas la session pendant 10 minutes (écran éteint, rechargement), la tâche peut repartir de zéro.
+
+## D21 · Relire toutes les 30 secondes plutôt que surveiller les fichiers · 25/11/2026
+- **Contexte** : le plan prévoyait de surveiller le fichier du journal pour mettre à jour la page Réunions dès qu'il change.
+- **Options** : surveiller les fichiers et prévenir l'écran à chaque changement ; relire à intervalle régulier.
+- **Décision** : l'écran demande le journal et la session toutes les 30 secondes. Le PC ne relit le journal que si sa date ou sa taille a changé, et cherche la session active toutes les 30 secondes en tâche de fond.
+- **Conséquences** : plus simple et plus robuste, puisqu'aucun changement ne peut être manqué. En contrepartie, la page se met à jour en 30 secondes au plus après un `/prep-reunions`.
+
+## D22 · Journal lu d'après la définition des commandes, en attendant un vrai fichier · 25/11/2026
+- **Contexte** : le plan demande de s'aligner sur de vrais fichiers. Mon seul journal réel ne contenait qu'un bloc `/rapport` : `/prep-reunions` et `/decisions` n'avaient encore rien écrit.
+- **Options** : attendre un vrai fichier avant de coder la lecture ; lire d'après le format défini dans les commandes, en restant tolérant.
+- **Décision** : lire d'après les commandes, de façon tolérante : titres reconnus par leur début, sous-puces, niveaux de titres variables, états en gras.
+- **Conséquences** : la page Réunions marche dès le premier `/prep-reunions`. Le format sera confirmé sur mon premier vrai fichier, puis `docs/formats/journal.md` mis à jour. Quelques mises en forme hors définition, comme un rapport sans heure ou les décisions du jour écrites dans la préparation, ne sont pas lues.
