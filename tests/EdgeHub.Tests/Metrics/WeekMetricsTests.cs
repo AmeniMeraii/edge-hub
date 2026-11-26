@@ -150,6 +150,73 @@ public sealed class WeekMetricsTests : IDisposable
     }
 
     [Fact]
+    public async Task Counts_an_event_sent_in_utc_on_its_local_day()
+    {
+        // 23:30 UTC on Tuesday is 00:30 on Wednesday in Paris: the screen sends UTC times.
+        Events().Append(new MetricEvent(new DateTimeOffset(2026, 11, 24, 23, 30, 0, TimeSpan.Zero), MetricEventType.FocusCompleted));
+
+        WeekMetricsMessage week = await Week().GetAsync(Ct);
+
+        Assert.Equal([2, 0, 2], week.Days.Take(3).Select(d => d.FocusCompleted));
+    }
+
+    [Fact]
+    public async Task Keeps_the_earliest_time_the_preparation_was_seen()
+    {
+        Events().Append(new MetricEvent(At(24, 9), MetricEventType.PreparationSeen));
+
+        WeekMetricsMessage week = await Week().GetAsync(Ct);
+
+        Assert.True(week.Days[1].PreparedBeforeDaily);
+    }
+
+    [Fact]
+    public async Task Finds_a_tasks_report_however_the_ticket_is_written()
+    {
+        // A report heading with one separator, tasks written « [DEMO-104] … » and « DEMO-105: … », and a task without a
+        // ticket whose report has the same title.
+        Journal(24, prepared: true, """
+            ## 11:30 · DEMO-103 Tri par date
+            ## 12:00 · DEMO-104 · Couvertures
+            ## 13:00 · demo-105 · Export Excel
+            ## 14:00 · phase-0 · Edge Hub phase 0
+            """);
+        EventLog log = Events();
+        log.Append(new MetricEvent(At(24, 12, 10), MetricEventType.TaskDone, "[DEMO-104] Couvertures"));
+        log.Append(new MetricEvent(At(24, 13, 10), MetricEventType.TaskDone, "DEMO-105: export Excel"));
+        log.Append(new MetricEvent(At(24, 14, 10), MetricEventType.TaskDone, "Edge Hub phase 0"));
+
+        DayMetrics tuesday = (await Week().GetAsync(Ct)).Days[1];
+
+        Assert.Equal((4, 4, true), (tuesday.TasksDone, tuesday.TasksReported, tuesday.Held));
+    }
+
+    [Fact]
+    public async Task Leaves_today_out_until_it_can_be_told()
+    {
+        // 08:00 on Thursday: no preparation yet, the daily is at 09:30. Today is neither held nor missed so far.
+        File.Delete(Path.Combine(_journal.FullName, "2026-11-26.md"));
+        _time.Advance(TimeSpan.FromHours(-7));
+
+        WeekMetricsMessage week = await Week().GetAsync(Ct);
+
+        Assert.Null(week.Days[3].PreparedBeforeDaily);
+        Assert.Equal((1, 3, 1, 3), (week.Totals!.HeldDays, week.Totals.ElapsedWorkDays, week.Totals.PreparedBeforeDaily, week.Totals.PreparedBeforeDailyKnown));
+    }
+
+    [Fact]
+    public async Task Counts_sessions_done_among_those_planned_and_skips_a_day_the_calendar_cannot_give()
+    {
+        Events().Append(new MetricEvent(At(24, 18), MetricEventType.SportDone));
+        _calendar.Unavailable.Add(new DateOnly(2026, 11, 25));
+
+        WeekMetricsTotals totals = (await Week().GetAsync(Ct)).Totals!;
+
+        // Tuesday's session was not planned; Wednesday is unknown.
+        Assert.Equal((1, 1), (totals.SportDone, totals.SportPlanned));
+    }
+
+    [Fact]
     public async Task Says_when_the_measure_is_off()
     {
         WeekMetricsMessage week = await Week(new MetricsOptions { Enabled = false, Folder = _metrics.FullName }).GetAsync(Ct);
@@ -162,11 +229,15 @@ public sealed class WeekMetricsTests : IDisposable
     {
         public Dictionary<DateOnly, CalendarEvent> Sessions { get; } = [];
 
+        public HashSet<DateOnly> Unavailable { get; } = [];
+
         public bool IsConfigured { get; set; } = true;
 
         public DateTimeOffset? LastReadAt => null;
 
         public Task<IReadOnlyList<CalendarEvent>> GetEventsAsync(DateOnly day, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<CalendarEvent>>(Sessions.TryGetValue(day, out CalendarEvent? session) ? [session] : []);
+            Unavailable.Contains(day)
+                ? Task.FromException<IReadOnlyList<CalendarEvent>>(new CalendarUnavailableException())
+                : Task.FromResult<IReadOnlyList<CalendarEvent>>(Sessions.TryGetValue(day, out CalendarEvent? session) ? [session] : []);
     }
 }

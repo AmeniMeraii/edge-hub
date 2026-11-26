@@ -34,13 +34,17 @@ public sealed record DayMetrics(
 
 /// <summary>
 /// The week so far. <c>HeldDays</c>, the main indicator, counts the work days with the preparation done and every
-/// finished task reported; <c>WorkedDays</c>, the work days with a journal file or an event from the screen.
+/// finished task reported, out of <c>ElapsedWorkDays</c>, the past work days and today once held;
+/// <c>PreparedBeforeDaily</c> is out of <c>PreparedBeforeDailyKnown</c>, the days that can be told; <c>WorkedDays</c>
+/// counts the work days with a journal file or an event from the screen; with a calendar, <c>SportDone</c> counts the
+/// sessions done among <c>SportPlanned</c>.
 /// </summary>
 public sealed record WeekMetricsTotals(
     int HeldDays,
     int ElapsedWorkDays,
     int PreparedDays,
     int PreparedBeforeDaily,
+    int PreparedBeforeDailyKnown,
     bool DailyTimeSet,
     int Reports,
     int DaysWithReport,
@@ -81,7 +85,7 @@ public sealed class WeekMetrics(
         TimeOnly? daily = options.CurrentValue.DailyAt();
 
         ILookup<DateOnly, MetricEvent> byDay = events
-            .Read(StartOf(monday, zone), StartOf(monday.AddDays(7), zone))
+            .Read(LocalDays.StartOf(monday, zone), LocalDays.StartOf(monday.AddDays(7), zone))
             .ToLookup(e => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(e.At, zone).DateTime));
 
         var days = new List<Day>();
@@ -92,18 +96,24 @@ public sealed class WeekMetrics(
 
         List<DayMetrics> all = days.Select(d => d.Metrics).ToList();
         List<DayMetrics> work = all.Where(d => d.WorkDay).ToList();
+
+        // Today counts once it is held: until then it may still be.
+        List<DayMetrics> elapsed = work.Where(d => d.Day < today || d.Held).ToList();
+        bool calendarSet = calendar.IsConfigured;
         var totals = new WeekMetricsTotals(
             HeldDays: work.Count(d => d.Held),
-            ElapsedWorkDays: work.Count,
+            ElapsedWorkDays: elapsed.Count,
             PreparedDays: work.Count(d => d.Prepared),
             PreparedBeforeDaily: work.Count(d => d.PreparedBeforeDaily == true),
+            PreparedBeforeDailyKnown: work.Count(d => d.PreparedBeforeDaily is not null),
             DailyTimeSet: daily is not null,
             Reports: all.Sum(d => d.Reports),
             DaysWithReport: work.Count(d => d.Reports > 0),
             WorkedDays: days.Count(d => d.Metrics.WorkDay && d.Worked),
             FocusCompleted: all.Sum(d => d.FocusCompleted),
-            SportDone: all.Count(d => d.SportDone),
-            SportPlanned: all.Any(d => d.SportPlanned is null) ? null : all.Count(d => d.SportPlanned == true),
+            // With a calendar, the sessions done among those planned; a day the calendar could not give is left out.
+            SportDone: calendarSet ? all.Count(d => d.SportDone && d.SportPlanned == true) : all.Count(d => d.SportDone),
+            SportPlanned: calendarSet ? all.Count(d => d.SportPlanned == true) : null,
             PauseReminders: all.Sum(d => d.PauseReminders),
             PausesTaken: all.Sum(d => d.PausesTaken));
         return new WeekMetricsMessage(true, monday, monday.AddDays(6), all, totals);
@@ -114,14 +124,14 @@ public sealed class WeekMetrics(
         JournalFile file = await journal.ReadAsync(day, cancellationToken).ConfigureAwait(false) ?? JournalFile.Missing;
         bool prepared = file.Day.Preparation is not null;
         DateTimeOffset? seen = dayEvents.Where(e => e.Type == MetricEventType.PreparationSeen).Select(e => (DateTimeOffset?)e.At).Min();
+        bool today = day == DateOnly.FromDateTime(now.DateTime);
         bool? beforeDaily = daily is null ? null
-            : !prepared ? false
+            : !prepared ? (today && TimeOnly.FromDateTime(now.DateTime) < daily ? null : false)
             : seen is null ? null
             : TimeOnly.FromDateTime(TimeZoneInfo.ConvertTime(seen.Value, zone).DateTime) <= daily;
 
-        HashSet<string> reported = file.Day.Reports.Select(r => r.Ticket).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        List<string> tasks = dayEvents.Where(e => e.Type == MetricEventType.TaskDone).Select(e => Ticket(e.Task)).ToList();
-        int tasksReported = tasks.Count(reported.Contains);
+        List<string> tasks = dayEvents.Where(e => e.Type == MetricEventType.TaskDone).Select(e => e.Task ?? "").ToList();
+        int tasksReported = tasks.Count(task => Reported(task, file.Day.Reports));
 
         List<MetricEvent> reminders = dayEvents.Where(e => e.Type == MetricEventType.PauseReminder).ToList();
         int pausesTaken = reminders.Count(r => dayEvents.Any(e =>
@@ -168,14 +178,16 @@ public sealed class WeekMetrics(
         return session is not null && (done || session.Start <= now);
     }
 
-    /// <summary>The ticket of a task: its first word (« DEMO-101 Export CSV » → DEMO-101).</summary>
-    private static string Ticket(string? task) =>
-        task?.Trim().Split(' ', 2, StringSplitOptions.RemoveEmptyEntries) is [var first, ..] ? first : "";
-
-    private static DateTimeOffset StartOf(DateOnly day, TimeZoneInfo zone)
+    /// <summary>
+    /// A task has its report when a report of the day has the same ticket, however both are written, or, for a task
+    /// without a ticket (a session not renamed), the same title.
+    /// </summary>
+    private static bool Reported(string task, IReadOnlyList<Report> reports)
     {
-        DateTime midnight = day.ToDateTime(TimeOnly.MinValue);
-        return new DateTimeOffset(midnight, zone.GetUtcOffset(midnight));
+        string ticket = LocalDays.TicketOf(task);
+        return reports.Any(r =>
+            (ticket.Length > 0 && string.Equals(LocalDays.TicketOf(r.Ticket), ticket, StringComparison.OrdinalIgnoreCase))
+            || string.Equals(r.Title.Trim(), task.Trim(), StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>A day's metrics, and whether it was worked (a journal file or an event).</summary>

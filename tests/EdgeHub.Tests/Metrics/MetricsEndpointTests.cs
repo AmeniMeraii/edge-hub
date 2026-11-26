@@ -51,12 +51,50 @@ public sealed class MetricsEndpointTests : IDisposable
         Assert.Contains("\"task\":\"DEMO-101 Export CSV\"", line, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task Keeps_a_tasks_text_cleaned_and_short_and_only_for_a_finished_task()
+    {
+        await using var factory = new MetricsFactory(_folder.FullName);
+
+        await PostAsync(factory, new { type = "task-done", task = "DEMO-101\u0007 " + new string('é', 300) });
+        await PostAsync(factory, new { type = "focus-completed", task = "DEMO-102 Ne doit pas être gardé" });
+
+        string[] lines = await File.ReadAllLinesAsync(Events, Ct);
+        using JsonDocument done = JsonDocument.Parse(lines[0]);
+        string task = done.RootElement.GetProperty("task").GetString()!;
+        Assert.Equal(200, task.Length);
+        Assert.StartsWith("DEMO-101 é", task, StringComparison.Ordinal);
+        Assert.DoesNotContain("DEMO-102", lines[1], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Dates_an_event_from_a_screen_whose_clock_is_ahead_now()
+    {
+        await using var factory = new MetricsFactory(_folder.FullName);
+
+        using HttpResponseMessage response = await PostAsync(factory, new { type = "focus-completed", at = DateTimeOffset.UtcNow.AddMinutes(30) });
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        using JsonDocument line = JsonDocument.Parse(Assert.Single(await File.ReadAllLinesAsync(Events, Ct)));
+        Assert.True(line.RootElement.GetProperty("at").GetDateTimeOffset() <= DateTimeOffset.UtcNow);
+    }
+
+    [Fact]
+    public async Task Keeps_an_event_sent_twice_once()
+    {
+        await using var factory = new MetricsFactory(_folder.FullName);
+
+        await PostAsync(factory, new { type = "focus-completed", id = "a1b2c3" });
+        await PostAsync(factory, new { type = "focus-completed", id = "a1b2c3" });
+
+        Assert.Single(await File.ReadAllLinesAsync(Events, Ct));
+    }
+
     [Theory]
     [InlineData("not-a-type", 0)]
     [InlineData("preparation-seen", 0)]
     [InlineData("focus-completed", -9 * 24 * 60)]
-    [InlineData("focus-completed", 60)]
-    public async Task Refuses_an_unknown_event_or_one_far_from_now(string type, int minutesFromNow)
+    public async Task Refuses_an_unknown_event_or_one_far_too_old(string type, int minutesFromNow)
     {
         await using var factory = new MetricsFactory(_folder.FullName);
 

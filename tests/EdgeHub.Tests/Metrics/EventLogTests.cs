@@ -50,6 +50,36 @@ public sealed class EventLogTests : IDisposable
         Assert.Single(log.Read(Monday.AddDays(-1), Monday.AddDays(1)));
     }
 
+    [Fact]
+    public void An_interrupted_line_does_not_swallow_the_next_event()
+    {
+        System.IO.File.WriteAllText(File, "{\"at\":\"2026-11-23T09:00:00+01:00\",\"type\":\"focus-comp");
+        EventLog log = Log();
+
+        log.Append(new MetricEvent(Monday, MetricEventType.SportDone));
+
+        Assert.Equal([MetricEventType.SportDone], log.Read(Monday.AddDays(-1), Monday.AddDays(1)).Select(e => e.Type));
+    }
+
+    [Fact]
+    public void Reads_only_the_end_of_a_file_far_too_large()
+    {
+        // A file grown out of all proportion: only its last megabytes are read, whole lines only.
+        using (var writer = new StreamWriter(File))
+        {
+            string old = "{\"at\":\"2026-11-01T09:00:00+01:00\",\"type\":\"focus-completed\",\"task\":\"" + new string('x', 1000) + "\"}";
+            for (int i = 0; i < (EventLog.MaxBytes / old.Length) + 10; i++)
+            {
+                writer.WriteLine(old);
+            }
+        }
+
+        EventLog log = Log();
+        log.Append(new MetricEvent(Monday, MetricEventType.SportDone));
+
+        Assert.Equal([MetricEventType.SportDone], log.Read(Monday.AddDays(-1), Monday.AddDays(1)).Select(e => e.Type));
+    }
+
     [Theory]
     [InlineData(false, null)]
     [InlineData(true, "")]
