@@ -7,6 +7,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 ## [Unreleased]
 
 ### Added
+- « Ma semaine » on the meetings page, from `/api/metrics/week`: days held (preparation done and each finished task reported with the same ticket), preparation before the daily (`Metrics:DailyTime`), reports, focus sessions, sport sessions done out of those planned, pause reminders followed. The screen sends its events to `POST /api/events`, kept in `%LOCALAPPDATA%\EdgeHub\events.jsonl` and nowhere else, and keeps those it could not send for later; the PC notes the first time it sees the day's preparation. `Metrics:Enabled` turns it all off.
 - Meetings page, reached by swiping or with the dots at the bottom: the morning's preparation from the activity journal (daily per ticket, technical choices, points to raise, state of the previous decisions) and the day's meeting decisions, from `/api/journal/today`; « Lance /prep-reunions dans Claude Code » without a preparation. The day's file is read again as soon as it changes.
 - Active Claude Code session (`/api/claude/current`): name, branch, start and number of edited files, found every 30 seconds with the rule of decision D10 and read incrementally, metadata only. It fills « Une seule chose » when it is empty, never over a task typed by hand, keeps its task when renamed, and heads the meetings page.
 - The screen remembers its page, opens the meetings page with `#reunions`, and goes back to the first page during a focus session or in the 30 minutes before a sport session.

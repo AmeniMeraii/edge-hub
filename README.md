@@ -52,6 +52,16 @@ The top of the page shows the active Claude Code session: its name, its branch, 
 
 During a focus session, or in the 30 minutes before a sport session, the screen goes back to the first page after a minute without being touched.
 
+## My week
+
+The top of the meetings page shows « Ma semaine », the indicators of [`docs/product/indicateurs.md`](docs/product/indicateurs.md) for the current week, Monday to today, from `/api/metrics/week`:
+
+- **days held**, the main indicator: work days whose preparation was done and where each task finished with « Terminé » in « Une seule chose » has a report (`/rapport`) with the same ticket, the task's first word;
+- **preparation before the daily**: the PC notes the first time it sees the day's preparation in the journal, and compares it with `Metrics:DailyTime` (for example `09:30`); without that setting, only the days with a preparation are counted;
+- **reports**, **focus sessions** completed, **sport sessions** done out of those planned in the calendar so far, and **pause reminders** followed within 10 minutes by a pause, a finished task or a change of task.
+
+The screen sends what it notices (focus completed, pause started, pause reminder, task finished or changed, sport session done) to `POST /api/events`; events it could not send wait on the tablet and leave later with their time. The PC appends them to `%LOCALAPPDATA%\EdgeHub\events.jsonl`, one JSON object per line (`at`, `type`, and `task` for a finished task). Nothing leaves the PC. `Metrics:Enabled` set to `false`, or an empty `Metrics:Folder`, turns the measure and the tile off.
+
 ## Logs
 
 The service writes its logs to the console and to one file per day, `%LOCALAPPDATA%\EdgeHub\logs\edgehub-YYYYMMDD.log`, starting a new file past 10 MB and deleting files older than 14 days; past 100 files (1 GB), the oldest go first whatever their age. `Logs:Folder` and `Logs:RetainedDays` (1 to 90 days) change that, and an empty folder turns the file off (see `appsettings.example.json`). The `Logging` settings choose what is written, for the file as for the console, but request addresses never reach either, whatever those settings say: the first one carries the token. If the folder cannot be written to when the service starts, the console says so once and the service runs without a log file.
