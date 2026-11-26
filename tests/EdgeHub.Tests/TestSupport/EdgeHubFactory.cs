@@ -48,6 +48,7 @@ public class EdgeHubFactory : WebApplicationFactory<Program>
                 ["Logs:Folder"] = "",
                 ["Journal:Folder"] = "",
                 ["ClaudeCode:ProjectsFolder"] = "",
+                ["ClaudeCode:DecisionsFolder"] = "",
                 ["Metrics:Folder"] = "",
             };
             foreach ((string key, string? value) in ExtraSettings)
@@ -61,6 +62,7 @@ public class EdgeHubFactory : WebApplicationFactory<Program>
         {
             services.AddSingleton<ISystemStats>(Stats);
             services.AddSingleton<IMediaController>(Media);
+            services.AddSingleton<IStartupFilter, TestRemoteAddress>();
         });
     }
 }

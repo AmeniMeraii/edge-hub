@@ -75,4 +75,4 @@ Sent at the end of each turn. Besides the common fields: `stop_hook_active` (`fa
 
 ## Privacy
 
-A permission request carries the full command, or the full content of a file being written, and the session's paths. Edge Hub shows the tablet the command, the file path (never its content), the folder and the session's name, keeps nothing of them on disk except its log of the decisions taken from the tablet, and never logs a request.
+A permission request carries the full command, or the full content of a file being written, and the session's paths. Edge Hub shows the tablet the command, the file path (never its content), the folder's name and the session's name, keeps nothing of them on disk except its log of the decisions taken from the tablet (`decisions.log`), and its own log only names the tool and the outcome, never the command.

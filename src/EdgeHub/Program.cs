@@ -1,4 +1,5 @@
 using EdgeHub.Calendar;
+using EdgeHub.ClaudeHooks;
 using EdgeHub.ClaudeSessions;
 using EdgeHub.Configuration;
 using EdgeHub.ConsoleMode;
@@ -13,6 +14,12 @@ using EdgeHub.SystemStats;
 if (args.Contains(TokenCommand.Argument))
 {
     Console.Write(TokenCommand.Text(AccessToken.Create()));
+    return 0;
+}
+
+if (args.Contains(HookTokenCommand.Argument))
+{
+    Console.Write(HookTokenCommand.Text(AccessToken.Create()));
     return 0;
 }
 
@@ -88,6 +95,18 @@ builder.Services.AddSingleton<EventRecorder>();
 builder.Services.AddSingleton<WeekMetrics>();
 builder.Services.AddHostedService<PreparationWatch>();
 builder.Services.AddSingleton<LiveStateHub>();
+builder.Services.AddSingleton(services => new DecisionLog(
+    services.GetRequiredService<Microsoft.Extensions.Options.IOptions<ClaudeCodeOptions>>().Value.ResolvedDecisionsFolder(),
+    services.GetRequiredService<TimeProvider>(),
+    services.GetRequiredService<ILogger<DecisionLog>>()));
+builder.Services.AddSingleton(services =>
+{
+    var desk = new ClaudeDesk(services.GetRequiredService<TimeProvider>(), services.GetRequiredService<DecisionLog>());
+    // A card that comes or goes reaches the screens at once, not at the next second.
+    LiveStateHub hub = services.GetRequiredService<LiveStateHub>();
+    desk.Changed += (_, _) => hub.Nudge();
+    return desk;
+});
 builder.Services.AddHostedService<LiveStateService>();
 builder.Services.AddHealthChecks();
 
@@ -98,8 +117,10 @@ app.UseDefaultFiles();
 app.UseStaticFiles();
 
 app.MapHealthChecks("/health");
-app.MapGet("/api/stream", (LiveStateHub hub, IHostApplicationLifetime lifetime, CancellationToken requestAborted) =>
-    TypedResults.ServerSentEvents(StreamMessages(hub, requestAborted, lifetime.ApplicationStopping), eventType: "state"));
+app.MapGet("/api/stream", (HttpContext context, LiveStateHub hub, ClaudeDesk desk, IHostApplicationLifetime lifetime, CancellationToken requestAborted) =>
+    TypedResults.ServerSentEvents(
+        StreamMessages(hub, desk, fromAnotherDevice: !ThisPc.IsTheCaller(context.Connection), requestAborted, lifetime.ApplicationStopping),
+        eventType: "state"));
 
 app.MapGet("/api/calendar/today", (CalendarToday today, CancellationToken cancellationToken) => today.GetAsync(cancellationToken));
 app.MapGet("/api/journal/today", (JournalToday journal, CancellationToken cancellationToken) => journal.GetAsync(cancellationToken));
@@ -108,6 +129,7 @@ app.MapGet("/api/metrics/week", (WeekMetrics week, CancellationToken cancellatio
 // An event is a few dozen bytes: a larger body is refused before it is read.
 app.MapPost("/api/events", (EventRequest request, EventRecorder recorder) => recorder.Record(request))
     .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(4096));
+app.MapClaudeHooks();
 
 await app.RunAsync();
 return 0;
@@ -120,12 +142,14 @@ static string? PublishedContentRoot() =>
 // A stream ends when the screen leaves or when the service stops, so a connected tablet never delays a restart.
 static async IAsyncEnumerable<StreamMessage> StreamMessages(
     LiveStateHub hub,
+    ClaudeDesk desk,
+    bool fromAnotherDevice,
     CancellationToken requestAborted,
     CancellationToken stopping,
     [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken enumeration = default)
 {
     using var ending = CancellationTokenSource.CreateLinkedTokenSource(requestAborted, stopping, enumeration);
-    IAsyncEnumerator<LiveState> states = hub.Subscribe(ending.Token).GetAsyncEnumerator(ending.Token);
+    IAsyncEnumerator<LiveState> states = hub.Subscribe(fromAnotherDevice, ending.Token).GetAsyncEnumerator(ending.Token);
     try
     {
         while (true)
@@ -142,7 +166,7 @@ static async IAsyncEnumerable<StreamMessage> StreamMessages(
                 yield break;
             }
 
-            yield return StreamMessage.From(states.Current);
+            yield return StreamMessage.From(states.Current, desk.Snapshot());
         }
     }
     finally

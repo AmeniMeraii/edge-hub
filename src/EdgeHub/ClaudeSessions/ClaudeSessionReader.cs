@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
 
@@ -13,6 +14,13 @@ public interface IClaudeSessionReader
 {
     /// <summary>The active session, or null when there is none (or no projects folder).</summary>
     ActiveSession? FindActive();
+
+    /// <summary>
+    /// The name of the session a hook comes from, at once: its <c>/rename</c> file, else the titles already read by
+    /// <see cref="FindActive"/>, else its folder's name. <paramref name="transcriptPath"/> is used only inside the
+    /// projects folder.
+    /// </summary>
+    string NameOf(string? transcriptPath, string? cwd);
 }
 
 /// <summary>
@@ -29,7 +37,23 @@ public sealed partial class ClaudeSessionReader(IOptionsMonitor<ClaudeCodeOption
     private const int MaxNameLength = 120;
     private static readonly TimeSpan ForgetAfter = TimeSpan.FromHours(1);
 
-    private readonly Dictionary<string, SessionFile> _files = new(StringComparer.OrdinalIgnoreCase);
+    // Concurrent: the hooks look up names while the monitor reads the sessions.
+    private readonly ConcurrentDictionary<string, SessionFile> _files = new(StringComparer.OrdinalIgnoreCase);
+
+    public string NameOf(string? transcriptPath, string? cwd)
+    {
+        if (SessionFileInProjects(transcriptPath) is { } main)
+        {
+            _files.TryGetValue(main, out SessionFile? read);
+            string sessionFolder = Path.Combine(Path.GetDirectoryName(main)!, Path.GetFileNameWithoutExtension(main));
+            if ((CustomTitleFile(sessionFolder) ?? read?.CustomTitle ?? read?.AiTitle) is { } title)
+            {
+                return Shorten(title);
+            }
+        }
+
+        return Shorten(FolderName(cwd) ?? "Claude Code");
+    }
 
     public ActiveSession? FindActive()
     {
@@ -78,7 +102,7 @@ public sealed partial class ClaudeSessionReader(IOptionsMonitor<ClaudeCodeOption
 
         foreach (string forgotten in _files.Where(f => now - f.Value.LastNeeded > ForgetAfter).Select(f => f.Key).ToList())
         {
-            _files.Remove(forgotten);
+            _files.TryRemove(forgotten, out _);
         }
 
         return best;
@@ -176,6 +200,28 @@ public sealed partial class ClaudeSessionReader(IOptionsMonitor<ClaudeCodeOption
     /// <summary>The last folder name of the project, never the full path: it can name a client.</summary>
     private static string? FolderName(string? cwd) =>
         string.IsNullOrWhiteSpace(cwd) ? null : Path.GetFileName(cwd.TrimEnd('\\', '/')) is { Length: > 0 } name ? name : null;
+
+    /// <summary>The session file a hook names, as a full path, or null when it is not a session file of the projects folder.</summary>
+    private string? SessionFileInProjects(string? transcriptPath)
+    {
+        if (string.IsNullOrWhiteSpace(transcriptPath) || options.CurrentValue.ResolvedFolder() is not { } root)
+        {
+            return null;
+        }
+
+        try
+        {
+            string full = Path.GetFullPath(transcriptPath);
+            return full.StartsWith(Path.TrimEndingDirectorySeparator(root) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+                && full.EndsWith(".jsonl", StringComparison.OrdinalIgnoreCase)
+                    ? full
+                    : null;
+        }
+        catch (Exception e) when (e is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return null;
+        }
+    }
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "Fichier de session illisible pour le moment")]
     private static partial void LogUnreadable(ILogger logger);
