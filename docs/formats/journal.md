@@ -76,7 +76,7 @@ The preparation's sections are `##` headings, like the report blocks: the prepar
 - À expliquer : …
 ```
 
-The meetings page does not read the reports: they are the material `/prep-reunions` works from the next morning. Their `Pour le daily` lines look like daily lines, which is one more reason the preparation must end at the report's heading.
+The meetings page does not show the reports: they are the material `/prep-reunions` works from the next morning. The weekly indicators read their time, ticket and title, to tell whether a finished task has its report. Their `Pour le daily` lines look like daily lines, which is one more reason the preparation must end at the report's heading.
 
 ### Meeting decisions (`/decisions`)
 
@@ -91,7 +91,7 @@ The meetings page does not read the reports: they are the material `/prep-reunio
 |---|---|---|
 | Preparation (the first one of the day) | daily lines (ticket, title, done, remaining, testable), followed-up decisions (decision, state), technical choices (ticket, text), points to raise | Daily, Réunion technique (points to raise in orange), Décisions d'hier |
 | Meeting decisions (every block of the day) | decision, who, when | Décisions du jour, with or without a preparation |
-| Reports | nothing | nothing |
+| Reports | time, ticket and title of each heading (`## 09:10 · DEMO-101 · Export CSV`; a single `·` also works) | nothing; used by « Ma semaine » |
 
 Without a file for the day, or without a preparation in it, the page says « Lance /prep-reunions dans Claude Code ».
 

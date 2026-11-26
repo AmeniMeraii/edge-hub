@@ -1,10 +1,16 @@
 namespace EdgeHub.Journal;
 
-/// <summary>What Edge Hub reads in one day of the journal: the meeting preparation and the meeting's decisions.</summary>
-public sealed record JournalDay(Preparation? Preparation, IReadOnlyList<MeetingDecision> Decisions)
+/// <summary>
+/// What Edge Hub reads in one day of the journal: the meeting preparation, the meeting's decisions, and the reports
+/// (for the weekly indicators).
+/// </summary>
+public sealed record JournalDay(Preparation? Preparation, IReadOnlyList<MeetingDecision> Decisions, IReadOnlyList<Report> Reports)
 {
-    public static JournalDay Empty { get; } = new(null, []);
+    public static JournalDay Empty { get; } = new(null, [], []);
 }
+
+/// <summary>A report of <c>/rapport</c>: <c>## {HH:mm} · {ticket} · {title}</c>.</summary>
+public sealed record Report(string Time, string Ticket, string Title);
 
 /// <summary>The block written by <c>/prep-reunions</c> (<c># Préparation du …</c>).</summary>
 public sealed record Preparation(

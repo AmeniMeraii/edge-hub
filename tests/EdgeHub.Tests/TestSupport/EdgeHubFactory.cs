@@ -43,10 +43,11 @@ public class EdgeHubFactory : WebApplicationFactory<Program>
             var settings = new Dictionary<string, string?>
             {
                 ["Security:Token"] = ConfiguredToken,
-                // Tests never write into the developer's logs, nor read their journal or Claude Code sessions.
+                // Tests never write into the developer's logs or metrics, nor read their journal or Claude Code sessions.
                 ["Logs:Folder"] = "",
                 ["Journal:Folder"] = "",
                 ["ClaudeCode:ProjectsFolder"] = "",
+                ["Metrics:Folder"] = "",
             };
             foreach ((string key, string? value) in ExtraSettings)
             {

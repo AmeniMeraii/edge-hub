@@ -17,7 +17,7 @@ public sealed class JournalTodayTests : IDisposable
     private string Today => Path.Combine(_folder.FullName, "2026-11-25.md");
 
     private JournalToday Journal(string? folder = null) =>
-        new(new FixedOptionsMonitor<JournalOptions>(new JournalOptions { Folder = folder ?? _folder.FullName }), _time);
+        new(new JournalReader(new FixedOptionsMonitor<JournalOptions>(new JournalOptions { Folder = folder ?? _folder.FullName })), _time);
 
     public void Dispose() => _folder.Delete(recursive: true);
 
@@ -109,7 +109,7 @@ public sealed class JournalTodayTests : IDisposable
     [Fact]
     public async Task Refuses_a_file_far_larger_than_a_journal_day()
     {
-        await File.WriteAllTextAsync(Today, new string('x', JournalToday.MaxBytes + 1), Ct);
+        await File.WriteAllTextAsync(Today, new string('x', JournalReader.MaxBytes + 1), Ct);
 
         JournalTodayMessage today = await Journal().GetAsync(Ct);
 

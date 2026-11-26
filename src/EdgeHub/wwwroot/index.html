@@ -276,12 +276,18 @@ button.on { border-color: var(--accent); color: var(--accent); }
   grid-template-rows: auto minmax(0, 1fr);
   grid-template-areas: "head head head" "daily tech dec";
 }
-.meet-head { grid-area: head; flex-direction: row; align-items: center; gap: 16px; }
-.meet-head .session { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+/* L'en-tête passe à la ligne plutôt que d'écraser la session quand un statut s'allonge (PC injoignable). */
+.meet-head { grid-area: head; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.meet-head .session { flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .session-name { font-family: var(--font-display); font-weight: 600; font-size: clamp(18px, 3.6vh, 28px); line-height: 1.15; overflow-wrap: anywhere; }
 .session-name.empty { font-family: var(--font-body); font-weight: 400; font-size: 15px; color: var(--muted); }
 .session-meta, .journal-status { font-size: 13px; color: var(--muted); }
-.journal-status { text-align: right; max-width: 40%; }
+.journal-status { flex: 0 1 240px; min-width: 0; margin-left: auto; text-align: right; }
+/* Ma semaine : les indicateurs de docs/product/indicateurs.md, mesurés sur le PC */
+.week { flex: 0 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.week-line { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--muted); }
+.week-line b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.week-line .main b { color: var(--ok); }
 .meet-daily { grid-area: daily; }
 .meet-tech { grid-area: tech; }
 .meet-dec { grid-area: dec; }
@@ -336,6 +342,10 @@ button.on { border-color: var(--accent); color: var(--accent); }
   .meet-empty { grid-area: auto; min-height: 220px; }
   .meet-head { flex-direction: column; align-items: stretch; }
   .journal-status { text-align: left; max-width: none; }
+  .week { max-width: none; }
+  /* En colonne, les bases prévues pour une ligne deviendraient des hauteurs. */
+  .meet-head .session, .week, .journal-status { flex: none; }
+  .journal-status { margin-left: 0; }
   .ideas { min-height: 220px; }
   .time { font-size: clamp(64px, 24vw, 120px); }
   .focus .ring-wrap { height: 220px; flex: none; }
@@ -420,7 +430,7 @@ button.on { border-color: var(--accent); color: var(--accent); }
       <div class="now-hint" id="nowHint"></div>
     </div>
     <form id="nowForm">
-      <input id="nowInput" type="text" placeholder="Une seule tâche…" autocomplete="off" aria-label="Tâche en cours">
+      <input id="nowInput" type="text" maxlength="200" placeholder="Une seule tâche…" autocomplete="off" aria-label="Tâche en cours">
       <button type="submit">Commencer</button>
     </form>
     <div class="acts" id="nowActs" hidden>
@@ -461,6 +471,10 @@ button.on { border-color: var(--accent); color: var(--accent); }
       <div class="label"><span>Claude Code</span></div>
       <div class="session-name empty" id="sessionName">Aucune session Claude Code active</div>
       <div class="session-meta" id="sessionMeta"></div>
+    </div>
+    <div class="week" id="weekBox" hidden>
+      <div class="label"><span>Ma semaine</span></div>
+      <div class="week-line" id="weekLine"></div>
     </div>
     <div class="journal-status" id="journalStatus">Lecture du journal…</div>
   </div>
@@ -545,6 +559,41 @@ button.on { border-color: var(--accent); color: var(--accent); }
   // Date du jour en heure locale : toISOString() donne la date UTC, qui change à 1 h ou 2 h du matin à Paris.
   const todayKey = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
 
+  // ---------- Événements pour « Ma semaine » ----------
+  // L'écran note ce qui se passe (focus terminé, pause, rappel, tâche terminée ou changée, séance faite) et l'envoie au
+  // PC, qui le garde dans son fichier d'événements. Ce qui n'a pas pu partir (PC injoignable) attend et repart plus tard,
+  // avec son heure d'origine ; le PC refuse ce qui date de plus de 8 jours.
+  // La file vit dans localStorage, relue à chaque fois : deux onglets ne s'écrasent pas. Chaque événement a un
+  // identifiant, pour que le PC le garde une seule fois même s'il arrive deux fois.
+  const queue = () => [].concat(store.get("events", []) || []).filter(e => e && typeof e.type === "string");
+  let sendingEvents = false;
+  const eventId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  function sendEvent(type, extra, at) {
+    const event = { id: eventId(), type, at: (at || new Date()).toISOString(), ...(extra || {}) };
+    if (typeof event.task === "string") event.task = event.task.slice(0, 200);
+    store.set("events", [...queue(), event].slice(-200));
+    flushEvents();
+  }
+  async function flushEvents() {
+    if (sendingEvents) return;
+    sendingEvents = true;
+    let sent = 0;
+    try {
+      for (let next = queue()[0]; next; next = queue()[0]) {
+        const response = await fetch("/api/events", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(next) });
+        // Accepté, ou refusé pour de bon (trop ancien, trop gros, inconnu) : il quitte la file. Jeton refusé, page d'un
+        // autre site, délai dépassé, trop de demandes ou erreur du PC : on réessaiera.
+        const retry = !response.ok && (response.status >= 500 || [401, 403, 408, 429].includes(response.status));
+        if (retry) break;
+        const rest = queue(), done = rest.findIndex(e => (next.id ? e.id === next.id : JSON.stringify(e) === JSON.stringify(next)));
+        if (done >= 0) rest.splice(done, 1);
+        store.set("events", rest); sent++;
+      }
+    } catch {}
+    sendingEvents = false;
+    if (sent) refreshWeek();
+  }
+
   // ---------- Horloge ----------
   const dateFmt = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   function isoWeek(d) {
@@ -569,6 +618,17 @@ button.on { border-color: var(--accent); color: var(--accent); }
   const fmtH = h => `${Math.floor(h)}:${pad(Math.round((h % 1) * 60))}`;
   function renderHoursBtn() { const [s, e] = presets[hoursIdx]; $("btnHours").textContent = `${fmtH(s)} – ${fmtH(e)}`; $("dayStart").textContent = fmtH(s); $("dayEnd").textContent = fmtH(e); }
   $("btnHours").onclick = () => { hoursIdx = (hoursIdx + 1) % presets.length; store.set("hours", hoursIdx); renderHoursBtn(); tickDay(new Date()); };
+  // Heures de travail en semaine, d'après le réglage de la tuile Journée.
+  // Début des heures de travail du jour : une tablette endormie la nuit, ou rechargée le matin, ne rappelle pas
+  // une pause au réveil pour le temps passé avant.
+  function workStart(now) {
+    const [s] = presets[hoursIdx];
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate(), Math.floor(s), Math.round((s % 1) * 60)).getTime();
+  }
+  function workingNow(now) {
+    const [s, e] = presets[hoursIdx], h = now.getHours() + now.getMinutes() / 60, wd = now.getDay();
+    return wd !== 0 && wd !== 6 && h >= s && h < e;
+  }
   function tickDay(now) {
     const [s, e] = presets[hoursIdx];
     const h = now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600;
@@ -627,8 +687,10 @@ button.on { border-color: var(--accent); color: var(--accent); }
     if (!endAt) return;
     remain = (endAt - Date.now()) / 1000;
     if (remain <= 0) {
+      // Daté de sa vraie fin : la tablette peut s'être endormie entre-temps.
+      const endedAt = new Date(endAt);
       endAt = null; remain = 0; beep();
-      if (!isBreak) { sessions.n++; store.set("sessions", sessions); renderCount(); buddyCheer(4000); toast("Session terminée. Pause de 5 minutes ?"); setMode(5, true); }
+      if (!isBreak) { sessions.n++; store.set("sessions", sessions); renderCount(); buddyCheer(4000); sendEvent("focus-completed", null, endedAt); toast("Session terminée. Pause de 5 minutes ?"); setMode(5, true); }
       else { toast("Pause terminée."); setMode(25, false); }
       return;
     }
@@ -643,7 +705,11 @@ button.on { border-color: var(--accent); color: var(--accent); }
   $("fStart").onclick = () => {
     try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); audio.resume && audio.resume(); } catch {}
     if (endAt) { remain = (endAt - Date.now()) / 1000; endAt = null; }
-    else { endAt = Date.now() + remain * 1000; }
+    else {
+      // Une pause compte quand elle commence, pas quand elle reprend après avoir été arrêtée.
+      if (isBreak && remain >= dur) sendEvent("break-started");
+      endAt = Date.now() + remain * 1000;
+    }
     renderFocus();
   };
   $("fReset").onclick = () => setMode(dur / 60, isBreak);
@@ -702,9 +768,16 @@ button.on { border-color: var(--accent); color: var(--accent); }
     const long = v && el >= v * 60000;
     $("nowTile").classList.toggle("long", !!long);
     $("nowHint").textContent = long ? "Pause : bois un verre d'eau et lève-toi 2 minutes." : "";
-    if (v && Date.now() - (cur.lastNudge || cur.start) >= v * 60000) {
+    // Le rappel ne sonne, et ne compte, qu'aux heures de travail en semaine : pas pour une tâche laissée le soir.
+    // Hors des heures de travail, le compte repart : pas de rappel dès la première minute du matin pour une tâche
+    // laissée la veille.
+    if (v && !workingNow(new Date())) {
+      cur.lastNudge = Date.now();
+      if (Date.now() - (cur.savedAt || 0) > 60000) { cur.savedAt = Date.now(); store.set("now", cur); }
+    }
+    if (v && Date.now() - Math.max(cur.lastNudge || cur.start, workStart(new Date())) >= v * 60000 && workingNow(new Date())) {
       cur.lastNudge = Date.now(); store.set("now", cur);
-      beep(); toast(`${v} minutes sur la même tâche : petite pause ?`);
+      beep(); toast(`${v} minutes sur la même tâche : petite pause ?`); sendEvent("pause-reminder");
     }
   }
   $("nowForm").addEventListener("submit", e => {
@@ -713,12 +786,14 @@ button.on { border-color: var(--accent); color: var(--accent); }
     cur = { t: v, start: Date.now(), lastNudge: Date.now() }; $("nowInput").value = ""; store.set("now", cur); renderNow(); tickNow();
   });
   $("nowDone").onclick = () => {
+    sendEvent("task-done", { task: cur.t });
     todos.push({ t: cur.t, d: true }); save();
     toast(`Bravo : « ${cur.t} » terminé en ${fmtDur(Date.now() - cur.start)}.`);
     if (cur.claude) dismissClaude(cur.claude);
     cur = null; store.set("now", null); renderNow();
   };
   $("nowSwitch").onclick = () => {
+    sendEvent("task-switched");
     // Je choisis moi-même la suite : ni cette tâche ni la session en cours ne reviennent toutes seules.
     if (cur.claude) dismissClaude(cur.claude);
     if (claudeLive()) dismissClaude(claudeKey(claude));
@@ -867,6 +942,36 @@ button.on { border-color: var(--accent); color: var(--accent); }
     renderMeetings();
   }
 
+  // ---------- Ma semaine ----------
+  let week = null;
+  async function refreshWeek() {
+    try {
+      const response = await fetch("/api/metrics/week", { cache: "no-store" });
+      if (response.ok) week = await response.json();
+    } catch {}
+    renderWeek();
+  }
+  function renderWeek() {
+    const box = $("weekBox"), line = $("weekLine");
+    // Une semaine qui n'est pas celle de cet écran (le PC en veille un lundi matin) n'est pas affichée.
+    const current = week && week.from && week.to && week.from <= todayKey() && todayKey() <= week.to;
+    box.hidden = !(current && week.enabled && week.totals);
+    if (box.hidden) return;
+    const t = week.totals, parts = [];
+    const add = (label, value, cls) => { const span = el("span", cls); span.append(document.createTextNode(`${label} `), el("b", null, value)); parts.push(span); };
+    // Un ratio sur zéro jour (lundi matin) ne dit rien encore.
+    const ratio = (n, of) => (of ? `${n}/${of}` : "—");
+    add("Jours tenus", ratio(t.heldDays, t.elapsedWorkDays), "main");
+    // Sur les seuls jours où l'on peut le dire : le PC doit avoir vu la préparation arriver.
+    if (t.dailyTimeSet) add("Préparation avant le daily", ratio(t.preparedBeforeDaily, t.preparedBeforeDailyKnown));
+    else add("Préparation", ratio(t.preparedDays, t.preparedDaysOutOf));
+    add("Jours avec rapport", ratio(t.daysWithReport, t.workedDays));
+    add("Focus", `${t.focusCompleted}`);
+    add("Sport", t.sportPlanned == null ? `${t.sportDone}` : ratio(t.sportDone, t.sportPlanned));
+    if (t.pauseReminders) add("Pauses", `${t.pausesTaken}/${t.pauseReminders}`);
+    line.replaceChildren(...parts);
+  }
+
   // ---------- Pages ----------
   // Glisser à gauche ou à droite, ou toucher un point. Pendant un focus, ou dans les 30 minutes avant une séance,
   // l'écran revient seul à la page Focus après une minute sans que je le touche.
@@ -1000,7 +1105,7 @@ button.on { border-color: var(--accent); color: var(--accent); }
     else sp.idx = 0;
     sp.done = false; saveSport(); tickSport(new Date());
   };
-  $("sportDone").onclick = () => { sp.done = true; saveSport(); toast("Séance faite. Bien joué."); tickSport(new Date()); };
+  $("sportDone").onclick = () => { sp.done = true; saveSport(); sendEvent("sport-done"); toast("Séance faite. Bien joué."); tickSport(new Date()); };
   function tickSport(now) {
     if (sp.day !== todayKey()) { sp = { day: todayKey(), idx: 0, manual: false, done: false, nudged: "" }; saveSport(); }
     const box = $("sport");
@@ -1145,6 +1250,8 @@ button.on { border-color: var(--accent); color: var(--accent); }
   refreshCalendar(); setInterval(refreshCalendar, 60 * 1000);
   refreshMeetings(); setInterval(refreshMeetings, 30 * 1000);
   refreshClaude(); setInterval(refreshClaude, 30 * 1000);
+  refreshWeek(); setInterval(refreshWeek, 5 * 60 * 1000);
+  flushEvents(); setInterval(flushEvents, 60 * 1000);
   setInterval(loop, 250);
 })();
 </script>
