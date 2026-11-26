@@ -619,6 +619,12 @@ button.on { border-color: var(--accent); color: var(--accent); }
   function renderHoursBtn() { const [s, e] = presets[hoursIdx]; $("btnHours").textContent = `${fmtH(s)} – ${fmtH(e)}`; $("dayStart").textContent = fmtH(s); $("dayEnd").textContent = fmtH(e); }
   $("btnHours").onclick = () => { hoursIdx = (hoursIdx + 1) % presets.length; store.set("hours", hoursIdx); renderHoursBtn(); tickDay(new Date()); };
   // Heures de travail en semaine, d'après le réglage de la tuile Journée.
+  // Début des heures de travail du jour : une tablette endormie la nuit, ou rechargée le matin, ne rappelle pas
+  // une pause au réveil pour le temps passé avant.
+  function workStart(now) {
+    const [s] = presets[hoursIdx];
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate(), Math.floor(s), Math.round((s % 1) * 60)).getTime();
+  }
   function workingNow(now) {
     const [s, e] = presets[hoursIdx], h = now.getHours() + now.getMinutes() / 60, wd = now.getDay();
     return wd !== 0 && wd !== 6 && h >= s && h < e;
@@ -769,7 +775,7 @@ button.on { border-color: var(--accent); color: var(--accent); }
       cur.lastNudge = Date.now();
       if (Date.now() - (cur.savedAt || 0) > 60000) { cur.savedAt = Date.now(); store.set("now", cur); }
     }
-    if (v && Date.now() - (cur.lastNudge || cur.start) >= v * 60000 && workingNow(new Date())) {
+    if (v && Date.now() - Math.max(cur.lastNudge || cur.start, workStart(new Date())) >= v * 60000 && workingNow(new Date())) {
       cur.lastNudge = Date.now(); store.set("now", cur);
       beep(); toast(`${v} minutes sur la même tâche : petite pause ?`); sendEvent("pause-reminder");
     }
@@ -961,7 +967,7 @@ button.on { border-color: var(--accent); color: var(--accent); }
     else add("Préparation", ratio(t.preparedDays, t.preparedDaysOutOf));
     add("Jours avec rapport", ratio(t.daysWithReport, t.workedDays));
     add("Focus", `${t.focusCompleted}`);
-    add("Sport", t.sportPlanned == null ? `${t.sportDone}` : `${t.sportDone}/${t.sportPlanned}`);
+    add("Sport", t.sportPlanned == null ? `${t.sportDone}` : ratio(t.sportDone, t.sportPlanned));
     if (t.pauseReminders) add("Pauses", `${t.pausesTaken}/${t.pauseReminders}`);
     line.replaceChildren(...parts);
   }
